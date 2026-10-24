@@ -12,6 +12,7 @@ var CoopCutscene Cutscene;	// remote players watch the host's cutscenes
 var CoopJailer Jailer;		// jail: the remote players' things go to the evidence room too
 var CoopReplicationInfo StateInfo;	// the host's GameState for the clients' map, newspaper and HUD
 var CoopTestBase Test;	// ?CoopTest=<name>
+var bool bRagdollNow;	// CoopRagdollSync.StartRagdoll is asking for a skeleton (CoopPlayer.GetNewRagdollSkel)
 var string TravelOptions;	// appended to the next ServerTravel URL (tests carry their state)
 
 const TravelSettleTime = 8.0;	// see TravelMustWait
@@ -367,6 +368,8 @@ function CoopTestBase SpawnTest(string Name)
 		return Spawn(class'CoopTestErrand');
 	if (Left(Name, 4) ~= "jail")
 		return Spawn(class'CoopTestJail');
+	if (Name ~= "ragdoll")
+		return Spawn(class'CoopTestRagdoll');
 	if (Name ~= "cutscene")
 		return Spawn(class'CoopTestCutscene');
 	if (Name ~= "screens")
@@ -928,6 +931,43 @@ function FinishSpawn(Controller aPlayer)
 		GiveKit(aPlayer.Pawn, aPlayer.PlayerReplicationInfo.PlayerName);
 }
 
+// The host's ragdoll of P, for the clients (CoopRagdollSync), one per body. With bWait the sync
+// starts the ragdoll itself on the next tick (CoopPlayer.GetNewRagdollSkel).
+function SyncRagdoll(Pawn P, bool bWait)
+{
+	local CoopRagdollSync S;
+
+	if (Level.NetMode != NM_ListenServer || P == None)
+		return;
+	foreach DynamicActors(class'CoopRagdollSync', S)
+		if (S.Corpse == P)
+			break;
+	if (S == None)
+	{
+		S = Spawn(class'CoopRagdollSync');
+		if (S == None)
+			return;
+		S.SetCorpse(P);
+		log("P2Coop: ragdoll sync"@S@"for"@P);
+	}
+	if (bWait)
+		S.StartSoon();
+}
+
+// An animal dies with an animation, not a ragdoll. AnimalPawn.PlayDying (next in Pawn.Died) would
+// tear the body off the network: each client would run its own fall and a player who comes later
+// would never see it. Without bPhysicsAnimUpdate it does not, and the body is synced like a
+// ragdoll: its location, rotation and death animation.
+function Killed(Controller Killer, Controller Killed, Pawn KilledPawn, class<DamageType> damageType)
+{
+	Super.Killed(Killer, Killed, KilledPawn, damageType);
+	if (AnimalPawn(KilledPawn) != None && Level.NetMode == NM_ListenServer)
+	{
+		KilledPawn.bPhysicsAnimUpdate = false;
+		SyncRagdoll(KilledPawn, false);
+	}
+}
+
 function bool IsTraveller(string PlayerName)
 {
 	local int i;
@@ -1095,6 +1135,5 @@ defaultproperties
 	GameName="POSTAL 2 Co-op"
 	PlayerControllerClassName="P2Coop.CoopPlayer"
 	HUDType="P2Coop.CoopHUD"
-	bForbidRagdolls=true	// see CoopPlayer.GetNewRagdollSkel
 	MapScreenClassName="P2Coop.CoopMapScreen"
 }

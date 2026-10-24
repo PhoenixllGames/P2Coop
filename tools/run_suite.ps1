@@ -11,6 +11,7 @@ $tests = @(
     @{ Name = 'travel'; Map = 'suburbs-3'; Clients = 2; Timeout = 700; Extra = '' },
     @{ Name = 'errand'; Map = 'Suburbs-1'; Clients = 1; Timeout = 200; Extra = '' },
     @{ Name = 'screens'; Map = 'suburbs-3'; Clients = 1; Timeout = 240; Extra = '' },
+    @{ Name = 'ragdoll';  Map = 'suburbs-3'; Clients = 1; Timeout = 200; Extra = '' },
     @{ Name = 'cutscene'; Map = 'suburbs-3'; Clients = 1; Timeout = 300; Extra = '' },
     @{ Name = 'jail';   Map = 'suburbs-3'; Clients = 1; Timeout = 400; Extra = '' },
     @{ Name = 'death';  Map = 'suburbs-3'; Clients = 1; Timeout = 240; Extra = '?CoopRespawnDelay=3' },

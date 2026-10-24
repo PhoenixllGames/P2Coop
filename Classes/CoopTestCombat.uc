@@ -80,6 +80,31 @@ function ClientCamera(CoopPlayer P, vector Loc, string StateName)
 		@"("$int(VSize(Victim.Location - Loc))@"apart, speed"@int(Speed)$", in the client pawn's sight:"@bSeen$")");
 }
 
+// The nearest living person, put in front of the client: one the client will have.
+function Pawn BringNPC()
+{
+	local Pawn P, Best;
+	local vector Dir;
+	local int n;
+
+	foreach DynamicActors(class'Pawn', P)
+		if (P.Health > 0 && P.PlayerReplicationInfo == None && P2MoCapPawn(P) != None
+			&& (Best == None || VSize(P.Location - Remote.Pawn.Location) < VSize(Best.Location - Remote.Pawn.Location)))
+			Best = P;
+	if (Best == None)
+		return None;
+	Dir = vector(Remote.Pawn.Rotation);
+	Dir.Z = 0;
+	Dir = Normal(Dir);
+	for (n = 0; n < 4; n++)
+	{
+		if (Best.SetLocation(Remote.Pawn.Location + 200 * Dir + vect(0,0,10)))
+			return Best;
+		Dir = Dir cross vect(0,0,1);
+	}
+	return None;
+}
+
 state Running
 {
 Begin:
@@ -164,15 +189,31 @@ Begin:
 	Check("client-hits-host", Lead.Pawn != None && Lead.Pawn.Health < HealthBefore,
 		"health"@HealthBefore@"->"@Lead.Pawn.Health);
 
-	// A dead NPC lies in the same place for everyone (no ragdolls in co-op). The victim is one the
-	// client has (an NPC is replicated only while relevant to him): the NPC nearest to the client
-	// on his machine, found on the server by its position as his report comes in (ClientCamera).
+	// A dead NPC lies in the same place for everyone (the host's ragdoll, CoopRagdollSync). The
+	// victim is one the client has (an NPC is replicated only while relevant to him): the NPC
+	// nearest to the client on his machine, found on the server by its position as his report
+	// comes in (ClientCamera).
 	Victim = None;
 	bGotCamera = false;
 	bPickVictim = true;
 	Remote.ClientTestCorpse(Remote.Pawn.Location);
 	Sleep(1.0);
 	bPickVictim = false;
+	if (Victim == None)
+	{
+		// The client's nearest one has moved on the server since he last got it (or is an old
+		// copy of someone out of his relevancy): one is brought to him.
+		log("P2CoopTest: no NPC of the client's near"@ClientCam@ClientState@"- bringing one");
+		if (BringNPC() != None)
+		{
+			Sleep(1.5);
+			bGotCamera = false;
+			bPickVictim = true;
+			Remote.ClientTestCorpse(Remote.Pawn.Location);
+			Sleep(1.0);
+			bPickVictim = false;
+		}
+	}
 	if (Victim != None)
 	{
 		Sleep(4.0);

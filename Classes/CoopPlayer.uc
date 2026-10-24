@@ -61,11 +61,11 @@ replication
 		ClientCutsceneView;
 	reliable if (Role == ROLE_Authority)
 		ClientTestCommand, ClientTestFire, ClientTestDrive, ClientTestAim, ClientTestLook,
-		ClientTestScreens, ClientTestEndScreens, ClientTestCamera, ClientTestCorpse;
+		ClientTestScreens, ClientTestEndScreens, ClientTestCamera, ClientTestCorpse, ClientTestBones;
 	reliable if (Role == ROLE_Authority && bNetOwner)
 		bTestMode;
 	reliable if (Role < ROLE_Authority)
-		ServerTestSaw, ServerTestScreens, ServerTestCamera, ServerScreenClosed;
+		ServerTestSaw, ServerTestScreens, ServerTestCamera, ServerTestBones, ServerScreenClosed;
 }
 
 // True on the server for a player on another machine. P2's screens (map, news, stats, load) and
@@ -521,13 +521,38 @@ simulated event Destroyed()
 // logs in and no Admin object exists. (AdminManager is private to PlayerController.)
 exec function AdminLogin(string CmdLine);
 
-// No ragdolls in co-op. A ragdoll is Karma physics run by each machine on its own, so the same
-// body ends up in different places for the host and the clients. Without a skeleton the pawn
-// dies with its death animation where it stood, the same everywhere (as in SP when every
-// ragdoll skeleton is taken). P2MoCapPawn.GetKarmaSkeleton asks the local player for one.
+// Ragdolls are simulated by the host only (P2MoCapPawn.GetKarmaSkeleton asks the local player
+// for a skeleton); CoopRagdollSync sends the host's ragdoll to the clients, so a body lies the
+// same for everyone, where a client's own Karma would put it somewhere else. The host hands out
+// the skeleton one frame late, from CoopRagdollSync.StartRagdoll, which first brings the body's
+// skeleton up to date: a ragdoll started on a body the host has not drawn, as when a client kills
+// someone out of the host's view, collapses and falls through the world.
+// The mini skeleton (Gary) gets none: creating its Karma skeleton faults in the engine (in the
+// stock PlayDying too), which then deletes the body. It dies with its animation, synced as well.
 simulated function KarmaParamsSkel GetNewRagdollSkel(FPSPawn NewPawn, name skelname)
 {
-	return None;
+	local KarmaParamsSkel Skel;
+	local CoopGame Game;
+
+	if (Level.NetMode == NM_Client)
+		return None;
+	Game = CoopGame(Level.Game);
+	if (Game == None || Level.NetMode != NM_ListenServer)
+		return Super.GetNewRagdollSkel(NewPawn, skelname);
+	if (skelname == 'Avg_Mini_Skel')
+	{
+		Game.SyncRagdoll(NewPawn, false);
+		return None;
+	}
+	if (!Game.bRagdollNow)
+	{
+		Game.SyncRagdoll(NewPawn, true);
+		return None;
+	}
+	Skel = Super.GetNewRagdollSkel(NewPawn, skelname);
+	if (Skel != None)
+		Game.SyncRagdoll(NewPawn, false);
+	return Skel;
 }
 
 // The server gave this player a unique name (CoopGame.Login). Travel items are matched by name,
@@ -744,6 +769,33 @@ function ClientTestCorpse(vector Near)
 	else
 		ServerTestCamera(Best.Location, "corpse" @ Best @ "role" @ Best.Role @ "physics" @ Best.Physics @ "anim" @ Best.bPhysicsAnimUpdate
 			@ "speed" @ int(VSize(Best.Velocity)));
+}
+
+// Reports the bone positions of the synced body nearest to Near (CoopTestRagdoll).
+function ClientTestBones(vector Near)
+{
+	local CoopRagdollSync S, Best;
+
+	if (!TestAllowed("ClientTestBones"))
+		return;
+	foreach DynamicActors(class'CoopRagdollSync', S)
+		if (S.Corpse != None && (Best == None || VSize(S.Corpse.Location - Near) < VSize(Best.Corpse.Location - Near)))
+			Best = S;
+	if (Best == None)
+		ServerTestBones("none");
+	else
+		ServerTestBones(class'CoopTestRagdoll'.static.BonePositions(Best.Corpse, Best.Severed));
+}
+
+function ServerTestBones(string Bones)
+{
+	local CoopTestRagdoll T;
+
+	if (!ServerTestRunning())
+		return;
+	log("P2CoopTest:"@PlayerReplicationInfo.PlayerName@"bones"@Bones);
+	foreach DynamicActors(class'CoopTestRagdoll', T)
+		T.ClientBonesReport(self, Bones);
 }
 
 // Reports where this machine's camera is.
