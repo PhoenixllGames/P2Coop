@@ -16,7 +16,7 @@ const DriveForward = 6000.0;
 // State code cannot have locals.
 var vector LeaderStart, ClientStart;
 var int HealthBefore, i;
-var Pawn Victim;
+var Pawn Victim, Brought;
 var bool bPickVictim;	// the client's next corpse report picks the victim (ClientCamera)
 
 // The living NPC nearest to Spot, within Radius.
@@ -75,12 +75,22 @@ function ClientCamera(CoopPlayer P, vector Loc, string StateName)
 	}
 	Speed = VSize(Victim.Velocity);
 	bSeen = FastTrace(Victim.Location, Remote.Pawn.Location + Remote.Pawn.EyePosition());
+	// Only one the client sees stays his: a pawn out of his sight stops being relevant to him, and
+	// some seconds later (the engine's relevancy timeout) his copy is gone, so the corpse check would
+	// compare the server's corpse with another NPC of his. One out of his sight is brought to him.
+	if (!bSeen)
+	{
+		log("P2CoopTest: the client's nearest NPC"@Victim@"at"@Victim.Location@"is out of his sight, not killed");
+		Victim = None;
+		return;
+	}
 	Victim.Died(Lead, class'BulletDamage', Victim.Location);
 	log("P2CoopTest: killed"@Victim@"at"@Victim.Location@"client had it at"@Loc
-		@"("$int(VSize(Victim.Location - Loc))@"apart, speed"@int(Speed)$", in the client pawn's sight:"@bSeen$")");
+		@"("$int(VSize(Victim.Location - Loc))@"apart, speed"@int(Speed)$", in the client pawn's sight)");
 }
 
-// The nearest living person, put in front of the client: one the client will have.
+// The nearest living person, put in front of the client: one the client will have (a hidden one
+// is never sent to him).
 function Pawn BringNPC()
 {
 	local Pawn P, Best;
@@ -88,7 +98,7 @@ function Pawn BringNPC()
 	local int n;
 
 	foreach DynamicActors(class'Pawn', P)
-		if (P.Health > 0 && P.PlayerReplicationInfo == None && P2MoCapPawn(P) != None
+		if (P.Health > 0 && P.PlayerReplicationInfo == None && P2MoCapPawn(P) != None && !P.bHidden
 			&& (Best == None || VSize(P.Location - Remote.Pawn.Location) < VSize(Best.Location - Remote.Pawn.Location)))
 			Best = P;
 	if (Best == None)
@@ -202,16 +212,25 @@ Begin:
 	if (Victim == None)
 	{
 		// The client's nearest one has moved on the server since he last got it (or is an old
-		// copy of someone out of his relevancy): one is brought to him.
+		// copy of someone out of his relevancy, or is out of his sight): one is brought to him.
 		log("P2CoopTest: no NPC of the client's near"@ClientCam@ClientState@"- bringing one");
-		if (BringNPC() != None)
+		Brought = BringNPC();
+		if (Brought != None)
 		{
-			Sleep(1.5);
-			bGotCamera = false;
-			bPickVictim = true;
-			Remote.ClientTestCorpse(Remote.Pawn.Location);
-			Sleep(1.0);
-			bPickVictim = false;
+			log("P2CoopTest: brought"@Brought@"to"@Brought.Location);
+			Remote.ClientTestAim(rotator(Brought.Location - Remote.Pawn.Location));
+			// He gets it at a net update once it is relevant to him: ask until he has it (5 s at most).
+			i = 0;
+			do
+			{
+				Sleep(0.5);
+				bGotCamera = false;
+				bPickVictim = true;
+				Remote.ClientTestCorpse(Brought.Location);
+				Sleep(0.5);
+				bPickVictim = false;
+				i++;
+			} until (i >= 5 || Victim != None);
 		}
 	}
 	if (Victim != None)
