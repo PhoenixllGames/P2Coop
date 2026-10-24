@@ -21,9 +21,16 @@ function ShuttingDown()
 		HeadMarker.Destroy();
 	if (TrailMarker != None)
 		TrailMarker.Destroy();
+	DropLevelActors();
+}
+
+// Also CoopRootWindow.CloseCoopScreens, when the level is already gone: let go, touch nothing.
+function DropLevelActors()
+{
 	HeadMarker = None;
 	TrailMarker = None;
 	gs = None;
+	Day = None;
 	MyFont = None;
 	P2P = None;
 }

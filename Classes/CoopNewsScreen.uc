@@ -18,6 +18,12 @@ function ShuttingDown()
 		return;
 	if (Paper != None)
 		Paper.Destroy();
+	DropLevelActors();
+}
+
+// Also CoopRootWindow.CloseCoopScreens, when the level is already gone: let go, touch nothing.
+function DropLevelActors()
+{
 	Paper = None;
 	MyFont = None;
 	P2P = None;

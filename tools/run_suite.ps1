@@ -14,7 +14,8 @@ $tests = @(
     @{ Name = 'cutscene'; Map = 'suburbs-3'; Clients = 1; Timeout = 300; Extra = '' },
     @{ Name = 'jail';   Map = 'suburbs-3'; Clients = 1; Timeout = 400; Extra = '' },
     @{ Name = 'death';  Map = 'suburbs-3'; Clients = 1; Timeout = 240; Extra = '?CoopRespawnDelay=3' },
-    @{ Name = 'load';   Map = 'suburbs-3'; Clients = 1; Timeout = 360; Extra = '' }
+    @{ Name = 'load';   Map = 'suburbs-3'; Clients = 1; Timeout = 360; Extra = '' },
+    @{ Name = 'leaderdead'; Map = 'suburbs-3'; Clients = 1; Timeout = 600; Extra = '' }
 )
 $results = @()
 foreach ($t in $tests) {

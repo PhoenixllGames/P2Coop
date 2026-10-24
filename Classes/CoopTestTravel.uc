@@ -48,24 +48,6 @@ function string InventoryProblem(Pawn P)
 	return S;
 }
 
-// The first telepad to another map, or the one whose URL starts with MapName.
-function Telepad FindPad(string MapName)
-{
-	local Telepad T, First;
-
-	foreach AllActors(class'Telepad', T)
-	{
-		if (InStr(T.URL, "#") < 0 || InStr(T.URL, "/") >= 0)
-			continue;
-		log("P2CoopTest: telepad"@T@"URL"@T.URL);
-		if (First == None)
-			First = T;
-		if (MapName != "" && Left(Caps(T.URL), Len(MapName)) == Caps(MapName))
-			return T;
-	}
-	return First;
-}
-
 function Travel(string NextPhase, string MapName)
 {
 	Pad = FindPad(MapName);

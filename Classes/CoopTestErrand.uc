@@ -7,14 +7,15 @@
 //   - everyone was told (CoopGame.AnnounceErrand),
 //   - the client is not stuck in a screen state (WaitMapScreen) on the server,
 //   - the client shows the crossing out on its own map, and plays on once it is closed,
-//   - the client still moves afterwards (its input is not swallowed).
+//   - the client still moves afterwards (its input is not swallowed),
+//   - an errand crossed out on the host's map is shown and announced to the client too.
 //=============================================================================
 class CoopTestErrand extends CoopTestBase;
 
 var ErrandBase Errand;
 var int ErrandIndex;
 var Pickup Item;
-var string Announced;
+var string Announced, AnnouncedByHost;
 var int CompletedBefore;
 var vector ClientStart;
 
@@ -22,6 +23,8 @@ function ErrandAnnounced(PlayerController Who, string ErrandName)
 {
 	if (Who == Remote)
 		Announced = ErrandName;
+	else if (Who == Lead)
+		AnnouncedByHost = ErrandName;
 }
 
 // Today's first open errand with a GetPickup goal whose pickup is on this map.
@@ -129,6 +132,24 @@ Begin:
 	Sleep(3.0);
 	Check("client-moves-after", VSize(Remote.Pawn.Location - ClientStart) > 100,
 		"moved"@VSize(Remote.Pawn.Location - ClientStart));
+
+	// The host's map crosses an errand out (as when he completes one): the client is told and
+	// sees it on his own map.
+	P2Player(Lead).DisplayMapCrossOut(ErrandIndex, 'None');
+	Sleep(1.5);
+	Check("host-errand-announced", AnnouncedByHost == Errand.UniqueName, "announced"@AnnouncedByHost);
+	bGotScreens = false;
+	Remote.ClientTestScreens();
+	Sleep(1.0);
+	Check("host-errand-client-crossout", bGotScreens && InStr(ClientOpen, "map") >= 0,
+		"open=["$ClientOpen$"] state="$ClientState);
+	for (EndPresses = 0; EndPresses < 6; EndPresses++)
+	{
+		Remote.ClientTestEndScreens();
+		if (P2Player(Lead).MyMapScreen != None && P2Player(Lead).MyMapScreen.IsRunning())
+			P2Player(Lead).MyMapScreen.bPlayerWantsToEnd = true;
+		Sleep(1.0);
+	}
 	Finish();
 }
 

@@ -40,6 +40,7 @@ How it plays:
     loads the last save.
   - Only the host saves. After loading, the host returns to the saved map with the day and errands;
     the others reconnect by themselves and keep what they carried. Positions start at the map start.
+  - A player whose game drops out and who rejoins on the same map gets his things back.
 
 Known limits: Paradise Lost is not supported. Not yet tried with two real Steam accounts (only
 with a local Steam stand-in). If another mod already uses System\dinput8.dll, the installer stops

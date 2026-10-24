@@ -16,7 +16,7 @@ var int CurrentDay;
 var bool bIsApocalypse;
 var float CopRadioTime;
 var string Completed, Activated, DeActivated, LocActivated, LocDeActivated, Haters;
-var int Serial;				// bumped by the server on every change
+var int Serial;				// bumped by the server on every change but CopRadioTime
 
 var float NextUpdate;		// server
 var int AppliedSerial;		// client
@@ -31,6 +31,19 @@ replication
 	reliable if (Role == ROLE_Authority)
 		CurrentDay, bIsApocalypse, CopRadioTime, Completed, Activated, DeActivated,
 		LocActivated, LocDeActivated, Haters, Serial;
+}
+
+// The serial of the host's state the client's shadow game has, -1 for none (CoopPlayer screens).
+static function int AppliedSerialFor(Actor A)
+{
+	local CoopReplicationInfo R;
+
+	if (A == None || A.Level.Game != None)
+		return -1;
+	foreach A.DynamicActors(class'CoopReplicationInfo', R)
+		if (R.Shadow != None)
+			return R.AppliedSerial;
+	return -1;
 }
 
 // The client's shadow game, or None (no copy yet, or Level.Game exists here).
@@ -74,6 +87,10 @@ simulated function Tick(float DeltaTime)
 			AppliedSerial = Serial;
 			Shadow.Apply(self);
 		}
+		// The wanted meter changes every half second during a chase: only the time, not Apply.
+		if (Shadow != None && AppliedSerial >= 0 && Shadow.TheGameState != None
+			&& Shadow.TheGameState.CopRadioTime != CopRadioTime)
+			Shadow.TheGameState.CopRadioTime = CopRadioTime;
 	}
 }
 
@@ -113,8 +130,7 @@ function ReadGameState()
 	}
 	if (Abs(CopRadioTime - gs.CopRadioTime) >= RadioStep || (CopRadioTime != gs.CopRadioTime && gs.CopRadioTime <= 0))
 	{
-		CopRadioTime = gs.CopRadioTime;
-		bChanged = true;
+		CopRadioTime = gs.CopRadioTime;	// not a change of Serial: the client copies it alone
 	}
 	bChanged = SetList(Completed, ErrandList(gs.CompletedErrands)) || bChanged;
 	bChanged = SetList(Activated, ErrandList(gs.ActivatedErrands)) || bChanged;

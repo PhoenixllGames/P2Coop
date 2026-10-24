@@ -35,6 +35,8 @@ def overrides(res, menu):
         # The map and newspaper screens switch to MinRes (1024x768) while they show; test copies
         # keep their window size so windows side by side do not overlap.
         "Postal2Game.P2Screen": {"MinRes": res.lower()},
+        # Co-op saves have their own folder, as install.ps1 sets it.
+        "Core.System": {"SavePath": "..\\SaveCoop"},
     }
 
 
@@ -127,6 +129,7 @@ def main():
     menu = STOCK_MENU if a.stock_menu else COOP_MENU
     game = make_game_ini(read(os.path.join(a.system, "Postal2.ini")), overrides(a.res, menu), menu)
     user = read(os.path.join(a.system, "User.ini"))
+    os.makedirs(os.path.join(a.system, "..", "SaveCoop"), exist_ok=True)
     for n in a.names:
         write(os.path.join(a.system, "P2Coop%s.ini" % n), game)
         write(os.path.join(a.system, "P2Coop%sUser.ini" % n), make_user_ini(user, a.player_name or n))

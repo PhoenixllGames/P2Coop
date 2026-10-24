@@ -139,6 +139,33 @@ function string CurrentMap()
 	return URL;
 }
 
+// Kills P (damage first; Died when damage is off, as in a cutscene).
+function Kill(Pawn P)
+{
+	log("P2CoopTest: killing"@P@"health"@P.Health);
+	P.TakeDamage(10000, None, P.Location, vect(0,0,0), class'BaseFX.BulletDamage');
+	if (P.Health > 0)
+		P.Died(None, class'BaseFX.BulletDamage', P.Location);
+}
+
+// The first telepad to another map, or the one whose URL starts with MapName.
+function Telepad FindPad(string MapName)
+{
+	local Telepad T, First;
+
+	foreach AllActors(class'Telepad', T)
+	{
+		if (InStr(T.URL, "#") < 0 || InStr(T.URL, "/") >= 0)
+			continue;
+		log("P2CoopTest: telepad"@T@"URL"@T.URL);
+		if (First == None)
+			First = T;
+		if (MapName != "" && Left(Caps(T.URL), Len(MapName)) == Caps(MapName))
+			return T;
+	}
+	return First;
+}
+
 function Finish()
 {
 	log("P2CoopTest: DONE"@TestName@"pass="$Passed@"fail="$Failed);
