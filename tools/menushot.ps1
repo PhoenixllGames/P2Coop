@@ -24,7 +24,7 @@ public struct RECT { public int Left, Top, Right, Bottom; }
 '@
 }
 python -I (Join-Path $PSScriptRoot 'mkcoopini.py') $System Menu | Out-Null
-Initialize-GameWindows '' '800x600' ([int](Get-TestSetting 'slot' 0)) | Out-Null
+Initialize-GameWindows (Get-TestSetting 'display' '') '800x600' ([int](Get-TestSetting 'slot' 0)) | Out-Null
 $p = Start-WithEnv (Join-Path $System 'Postal2.exe') '-NewWindow -nosteam ini=P2CoopMenu.ini userini=P2CoopMenuUser.ini log=Menu.log' $System (Get-BackgroundEnv 0)
 Start-Sleep $Wait
 $p.Refresh()

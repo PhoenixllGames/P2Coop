@@ -24,7 +24,7 @@ foreach ($n in $names) { Remove-Item (Join-Path $System "$n.log") -ErrorAction S
 Get-ChildItem $mock -Include 'menu-status*.txt', 'mock_steam.log', 'P2CoopLink-*.log' -Recurse -ErrorAction SilentlyContinue | Remove-Item
 # A copy left over from an earlier run would keep files open and ports busy (only this game copy).
 Get-Process -ErrorAction SilentlyContinue | Where-Object { $_.Path -and $_.Path -like "$gameRoot\*" } | Stop-Process -Force
-Initialize-GameWindows '' '800x600' ([int](Get-TestSetting 'slot' 0)) | Out-Null
+Initialize-GameWindows (Get-TestSetting 'display' '') '800x600' ([int](Get-TestSetting 'slot' 0)) | Out-Null
 
 function Start-Copy([string]$Name, [int]$Slot, [string]$MockName, [string]$Pick) {
     $envs = Get-BackgroundEnv $Slot
