@@ -111,6 +111,8 @@ function Wait-Log([string]$Name, [string]$Pattern, [int]$Seconds) {
 }
 
 if ($Relay) { Get-ChildItem $linkDir -Filter mock_steam.log -ErrorAction SilentlyContinue | Remove-Item }
+# Without a test, measure the join (CoopProbe quits the host when done).
+if ($UrlExtra -notmatch 'CoopTest=|CoopProbe=') { $UrlExtra += '?CoopProbe=join' }
 $host_ = if ($Relay) { Start-Linked 'Host' $HostArgs }
          else { Start-Game 'Host' "$Map`?Game=$Game`?Listen`?Port=$Port$UrlExtra" (@('-multihome=127.0.0.1') + $HostArgs) }
 $procs += $host_

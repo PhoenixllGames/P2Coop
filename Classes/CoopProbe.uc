@@ -1,7 +1,7 @@
 //=============================================================================
-// CoopProbe: listen-server measurements written to the log, picked by the
-// URL option ?CoopProbe=<scenario>:
-//   join      (default) log ControllerList and ping for 10 s after a join.
+// CoopProbe: listen-server measurements written to the log, for test runs only, picked by the
+// URL option ?CoopProbe=<scenario> (without it, it only logs the ControllerList):
+//   join      log ControllerList and ping for 10 s after a join.
 //   savelive  the host saves 5 s after the first join and keeps running: does a
 //             save break connected clients, and can more clients join after it?
 //   load      standalone: when the player logs in, load slot ?CoopLoadSlot=N the way
@@ -25,7 +25,7 @@ function PostBeginPlay()
 	Super.PostBeginPlay();
 	Scenario = CoopGame(Level.Game).URLOption("CoopProbe");
 	if (Scenario == "")
-		Scenario = "join";
+		return;	// a real game: no measuring, and never quit the host
 	Expected = Max(1, int(CoopGame(Level.Game).URLOption("CoopProbeClients")));
 	log("P2CoopProbe: scenario"@Scenario@"clients"@Expected);
 }
@@ -78,6 +78,8 @@ function string InventoryList(Pawn P)
 
 function RemoteJoined(PlayerController P)
 {
+	if (Scenario == "")
+		return;
 	Remote = P;
 	Joined++;
 	JoinTime = Level.TimeSeconds;
