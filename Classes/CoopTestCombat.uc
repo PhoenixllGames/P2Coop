@@ -15,6 +15,19 @@ const DriveForward = 6000.0;
 // State code cannot have locals.
 var vector LeaderStart, ClientStart;
 var int HealthBefore, i;
+var Pawn Victim;
+
+// The living NPC nearest to Spot, within Radius.
+function Pawn NPCAt(vector Spot, float Radius)
+{
+	local Pawn P, Best;
+
+	foreach DynamicActors(class'Pawn', P)
+		if (P.Health > 0 && P.PlayerReplicationInfo == None && VSize(P.Location - Spot) < Radius
+			&& (Best == None || VSize(P.Location - Spot) < VSize(Best.Location - Spot)))
+			Best = P;
+	return Best;
+}
 
 state Running
 {
@@ -96,6 +109,28 @@ Begin:
 	Check("client-hits-host", Lead.Pawn != None && Lead.Pawn.Health < HealthBefore,
 		"health"@HealthBefore@"->"@Lead.Pawn.Health);
 
+	// A dead NPC lies in the same place for everyone (no ragdolls in co-op). The victim is one the
+	// client has (an NPC is replicated only while relevant to him): the NPC nearest to the client
+	// on his machine, found on the server by its position.
+	bGotCamera = false;
+	Remote.ClientTestCorpse(Remote.Pawn.Location);
+	Sleep(1.0);
+	Victim = None;
+	if (bGotCamera && ClientState != "no-corpse")
+		Victim = NPCAt(ClientCam, 200);
+	if (Victim != None)
+	{
+		Victim.Died(Lead, class'BulletDamage', Victim.Location);
+		log("P2CoopTest: killed"@Victim@"at"@Victim.Location@"client had it at"@ClientCam@"state"@Victim.GetStateName());
+		Sleep(4.0);
+		bGotCamera = false;
+		Remote.ClientTestCorpse(Victim.Location);
+		Sleep(1.0);
+		Check("npc-corpse-same-place", Victim != None && bGotCamera && VSize(ClientCam - Victim.Location) < 64,
+			"server"@Victim.Location@"client"@ClientCam@ClientState@"server physics"@Victim.Physics);
+	}
+	else
+		Check("npc-corpse-same-place", false, "no NPC of the client's found on the server near"@ClientCam@ClientState);
 	Finish();
 }
 

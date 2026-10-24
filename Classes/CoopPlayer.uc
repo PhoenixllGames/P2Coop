@@ -14,6 +14,7 @@ var float TestDriveUntil;
 var float JoinTime;			// server: Level.TimeSeconds of PostLogin (CoopGame defers travel)
 var bool bRespawning;		// server: dead, CoopRespawner brings it back at RespawnTime
 var float RespawnTime;
+var float KitCheckTime;		// server: CoopGame.SpawnNear, a returning traveller's items should be here by then
 
 const ScreenMap = 0;		// ClientShowScreen
 const ScreenErrands = 1;
@@ -39,7 +40,7 @@ replication
 		ClientCutsceneView;
 	reliable if (Role == ROLE_Authority)
 		ClientTestCommand, ClientTestFire, ClientTestDrive, ClientTestAim, ClientTestLook,
-		ClientTestScreens, ClientTestEndScreens, ClientTestCamera;
+		ClientTestScreens, ClientTestEndScreens, ClientTestCamera, ClientTestCorpse;
 	reliable if (Role < ROLE_Authority)
 		ServerTestSaw, ServerTestScreens, ServerTestCamera;
 }
@@ -328,6 +329,15 @@ function DisplayStats(optional String URL)
 // logs in and no Admin object exists. (AdminManager is private to PlayerController.)
 exec function AdminLogin(string CmdLine);
 
+// No ragdolls in co-op. A ragdoll is Karma physics run by each machine on its own, so the same
+// body ends up in different places for the host and the clients. Without a skeleton the pawn
+// dies with its death animation where it stood, the same everywhere (as in SP when every
+// ragdoll skeleton is taken). P2MoCapPawn.GetKarmaSkeleton asks the local player for one.
+simulated function KarmaParamsSkel GetNewRagdollSkel(FPSPawn NewPawn, name skelname)
+{
+	return None;
+}
+
 // The server gave this player a unique name (CoopGame.Login). Travel items are matched by name,
 // so the next connect after a map change must use it too.
 function ClientSetCoopName(string NewName)
@@ -453,6 +463,21 @@ function ServerTestScreens(bool bShadow, int Day, int DoneToday, string Complete
 		@"hud wanted="$HUDWanted@"open=["$Open$"] state="$StateName);
 	foreach DynamicActors(class'CoopTestBase', T)
 		T.ClientScreens(self, bShadow, Day, DoneToday, Completed, Haters, Wanted, HUDWanted, Open, StateName);
+}
+
+// Reports, through the camera report, where this machine has the NPC nearest to Near (the test kills it first).
+function ClientTestCorpse(vector Near)
+{
+	local Pawn P, Best;
+
+	foreach DynamicActors(class'Pawn', P)
+		if (P.PlayerReplicationInfo == None	// a client does not get an NPC's health or state
+			&& (Best == None || VSize(P.Location - Near) < VSize(Best.Location - Near)))
+			Best = P;
+	if (Best == None)
+		ServerTestCamera(vect(0,0,0), "no-corpse");
+	else
+		ServerTestCamera(Best.Location, "corpse" @ Best @ "physics" @ Best.Physics @ "anim" @ Best.bPhysicsAnimUpdate);
 }
 
 // Reports where this machine's camera is.

@@ -1,5 +1,6 @@
 //=============================================================================
-// CoopRespawner: brings dead co-op players back (see CoopGame.PlayerDied).
+// CoopRespawner: brings dead co-op players back (see CoopGame.PlayerDied), and gives a returning
+// traveller the starting kit if his things did not come with him (CoopGame.SpawnNear).
 //=============================================================================
 class CoopRespawner extends Info;
 
@@ -21,6 +22,15 @@ function Timer()
 	for (C = Level.ControllerList; C != None; C = C.NextController)
 	{
 		P = CoopPlayer(C);
+		if (P != None && P.KitCheckTime > 0 && Level.TimeSeconds >= P.KitCheckTime)
+		{
+			P.KitCheckTime = 0;
+			if (P.Pawn != None && P.Pawn.FindInventoryType(class'Inventory.HandsWeapon') == None)
+			{
+				log("P2Coop:"@P.PlayerReplicationInfo.PlayerName@"came without his things, giving the kit");
+				G.GiveKit(P.Pawn, P.PlayerReplicationInfo.PlayerName);
+			}
+		}
 		if (P == None || !P.bRespawning || Level.TimeSeconds < P.RespawnTime)
 			continue;
 		if (P.Pawn != None && P.Pawn.Health > 0)

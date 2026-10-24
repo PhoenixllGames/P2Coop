@@ -20,6 +20,13 @@ var string PendingTravelURL;
 var bool bPendingTravelItems;
 var float PendingTravelSince;
 var CoopTravelWaiter TravelWaiter;
+// Remote players who carried their things through the last ServerTravel (class defaults, so the
+// next level's game info sees them). The engine gives a returning traveller his items right after
+// PostLogin; a starting kit given in PostLogin as well doubles them, and the engine then deletes
+// the doubles while weapons still point at them (a broken weapon state, no control).
+var array<string> Travellers;
+var bool bLoggingIn;		// inside PostLogin
+const KitCheckDelay = 2.0;	// a traveller without items by then gets the kit after all
 
 const DefaultRespawnDelay = 10.0;	// see PlayerDied
 var CoopRespawner Respawner;
@@ -35,7 +42,9 @@ event PostLogin(PlayerController NewPlayer, string Options)
 	local bool bHadPawn;
 
 	bHadPawn = NewPlayer.Pawn != None;	// a saved controller handed back by GameInfo.Login
+	bLoggingIn = true;
 	Super.PostLogin(NewPlayer, Options);
+	bLoggingIn = false;
 	if (CoopPlayer(NewPlayer) != None)
 		CoopPlayer(NewPlayer).JoinTime = Level.TimeSeconds;
 
@@ -384,7 +393,12 @@ function TryPendingTravel()
 		TravelWaiter.SetTimer(0.5, false);
 		return;
 	}
-	log("P2Coop: ServerTravel"@PendingTravelURL@"items"@bPendingTravelItems);
+	default.Travellers.Remove(0, default.Travellers.Length);
+	if (bPendingTravelItems)
+		for (C = Level.ControllerList; C != None; C = C.NextController)
+			if (CoopPlayer(C) != None && CoopPlayer(C).IsRemote() && C.PlayerReplicationInfo != None)
+				default.Travellers[default.Travellers.Length] = C.PlayerReplicationInfo.PlayerName;
+	log("P2Coop: ServerTravel"@PendingTravelURL@"items"@bPendingTravelItems@"travellers"@default.Travellers.Length);
 	Level.ServerTravel(PendingTravelURL, bPendingTravelItems);
 	PendingTravelURL = "";
 }
@@ -537,22 +551,46 @@ function bool SpawnNear(Controller aPlayer, Pawn Anchor)
 	aPlayer.PawnClass = aPlayer.Pawn.Class;
 	aPlayer.Pawn.PlayTeleportEffect(true, true);
 	aPlayer.ClientSetRotation(aPlayer.Pawn.Rotation);
-	AddDefaultInventory(aPlayer.Pawn);
-	// SP gives the dude's equipment in P2Player.TravelPostAccept, which a network
-	// joiner never gets (and which would rerun PostTravel's GameState handling).
-	if (P2Pawn(aPlayer.Pawn) != None)
+	if (bLoggingIn && IsTraveller(aPlayer.PlayerReplicationInfo.PlayerName) && CoopPlayer(aPlayer) != None)
 	{
-		P2Pawn(aPlayer.Pawn).AddDefaultInventory();
-		// The day's starting kit (money, map, stats...), as the leader got it in PostTravel.
-		if (TheGameState != None && TheGameState.CurrentDay >= 0 && TheGameState.CurrentDay < Days.Length)
-			Days[TheGameState.CurrentDay].AddInStartingInventory(P2Pawn(aPlayer.Pawn));
+		log("P2Coop:"@aPlayer.PlayerReplicationInfo.PlayerName@"brings his things from the last map");
+		CoopPlayer(aPlayer).KitCheckTime = Level.TimeSeconds + KitCheckDelay;
+		if (Respawner == None)
+			Respawner = Spawn(class'CoopRespawner');
 	}
-	if (BaseMod != None)
-		BaseMod.ModifyPlayerInventory(aPlayer.Pawn);
-	GiveCarriedInventory(aPlayer.Pawn, aPlayer.PlayerReplicationInfo.PlayerName);
+	else
+		GiveKit(aPlayer.Pawn, aPlayer.PlayerReplicationInfo.PlayerName);
 	log("P2Coop: spawned"@aPlayer.Pawn@"for"@aPlayer.PlayerReplicationInfo.PlayerName
 		@"near"@Anchor@"ring"@(Ring - 1));
 	return true;
+}
+
+function bool IsTraveller(string PlayerName)
+{
+	local int i;
+
+	for (i = 0; i < default.Travellers.Length; i++)
+		if (default.Travellers[i] == PlayerName)
+			return true;
+	return false;
+}
+
+// The starting things of a player's pawn.
+function GiveKit(Pawn P, string PlayerName)
+{
+	AddDefaultInventory(P);
+	// SP gives the dude's equipment in P2Player.TravelPostAccept, which a network
+	// joiner never gets (and which would rerun PostTravel's GameState handling).
+	if (P2Pawn(P) != None)
+	{
+		P2Pawn(P).AddDefaultInventory();
+		// The day's starting kit (money, map, stats...), as the leader got it in PostTravel.
+		if (TheGameState != None && TheGameState.CurrentDay >= 0 && TheGameState.CurrentDay < Days.Length)
+			Days[TheGameState.CurrentDay].AddInStartingInventory(P2Pawn(P));
+	}
+	if (BaseMod != None)
+		BaseMod.ModifyPlayerInventory(P);
+	GiveCarriedInventory(P, PlayerName);
 }
 
 // Stock takes the leader's things on entering jail (when the level starts); the jailer takes
@@ -644,5 +682,6 @@ defaultproperties
 	GameName="POSTAL 2 Co-op"
 	PlayerControllerClassName="P2Coop.CoopPlayer"
 	HUDType="P2Coop.CoopHUD"
+	bForbidRagdolls=true	// see CoopPlayer.GetNewRagdollSkel
 	MapScreenClassName="P2Coop.CoopMapScreen"
 }

@@ -31,6 +31,23 @@ function RemoteJoined(PlayerController P)
 		Super.RemoteJoined(P);
 }
 
+// "" if every weapon has its ammo and no item is there twice; otherwise what is wrong.
+function string InventoryProblem(Pawn P)
+{
+	local Inventory A, B;
+	local string S;
+
+	for (A = P.Inventory; A != None; A = A.Inventory)
+	{
+		if (Weapon(A) != None && (Weapon(A).AmmoType == None || Weapon(A).AmmoType.bDeleteMe))
+			S = S @ A.Class.Name $ ":no-ammo";
+		for (B = A.Inventory; B != None; B = B.Inventory)
+			if (B.Class == A.Class)
+				S = S @ A.Class.Name $ ":twice";
+	}
+	return S;
+}
+
 // The first telepad to another map, or the one whose URL starts with MapName.
 function Telepad FindPad(string MapName)
 {
@@ -90,6 +107,7 @@ Begin:
 	Check(Phase$"-leader-items", Has(Lead.Pawn, class'Inventory.ShotGunWeapon'), "");
 	Check(Phase$"-client-items", Has(Remote.Pawn, class'Inventory.PistolWeapon')
 		&& Has(Remote.Pawn, class'Inventory.MapInv'), "");
+	Check(Phase$"-client-inventory-whole", InventoryProblem(Remote.Pawn) == "", InventoryProblem(Remote.Pawn));
 	Dist = VSize(Remote.Pawn.Location - Lead.Pawn.Location);
 	Check(Phase$"-client-near-leader", Dist < 800, "distance"@Dist);
 	Check(Phase$"-both-alive", Lead.Pawn.Health > 0 && Remote.Pawn.Health > 0,

@@ -22,14 +22,15 @@
 class CoopRootWindow extends ShellRootWindow;
 
 const MaxReconnects = 10;	// a host loading a save refuses joins for a while (CoopGame.PreLogin)
-const ReconnectDelay = 4.0;
+const FirstReconnectWait = 15.0;	// see WatchConnection
+const RetryReconnectWait = 30.0;
 
 var bool bInPostRender;
 var string DeferredGameRes;
 
 var string LastServer;		// address of the host while connected ("127.0.0.1:port")
 var bool bWasClient;		// we were connected; cleared when the reconnect is sent
-var float DroppedTime;		// Level.TimeSeconds when we found ourselves dropped, 0 = not dropped
+var float ReconnectAt;		// Level.TimeSeconds of the next reconnect, 0 = connected
 var int Reconnects;
 
 var bool bMenuTestDone;		// tools/menu_e2e.ps1, see MenuTest
@@ -119,22 +120,25 @@ function WatchConnection()
 	{
 		LastServer = L.GetAddressURL();
 		bWasClient = true;
-		DroppedTime = 0;
+		ReconnectAt = 0;
+		Reconnects = 0;
 		return;
 	}
 	if (!bWasClient || LastServer == "" || Reconnects >= MaxReconnects || L.NetMode != NM_Standalone)
 		return;
-	if (DroppedTime == 0)
+	// A map change also passes through Entry ("Failed; returning to Entry" when the server's old
+	// level closes the connection first), and the engine's own connection to the new map is
+	// still on its way. Opening another one then would cut it off, so wait long enough.
+	if (ReconnectAt == 0)
 	{
-		DroppedTime = L.TimeSeconds;
-		log("P2Coop: dropped from"@LastServer@"("$L.GetLocalURL()$"), reconnecting in"@ReconnectDelay@"s");
+		ReconnectAt = L.TimeSeconds + FirstReconnectWait;
+		log("P2Coop: not connected to"@LastServer@"("$L.GetLocalURL()$"), reconnecting in"@FirstReconnectWait@"s unless the game gets back by itself");
 		return;
 	}
-	if (L.TimeSeconds - DroppedTime < ReconnectDelay)
+	if (L.TimeSeconds < ReconnectAt)
 		return;
 	Reconnects++;
-	DroppedTime = 0;
-	bWasClient = false;
+	ReconnectAt = L.TimeSeconds + RetryReconnectWait;	// time for this attempt to log in and load
 	log("P2Coop: reconnect"@Reconnects$"/"$MaxReconnects@"to"@LastServer);
 	HideMenu();
 	ViewportOwner.Actor.ConsoleCommand("open"@LastServer);
