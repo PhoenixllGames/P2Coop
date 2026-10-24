@@ -1,0 +1,8 @@
+export/
+*.log
+__pycache__/
+tools/ucc5100/out/
+link/out/
+link/redist/
+release/
+tools/testgame.local
