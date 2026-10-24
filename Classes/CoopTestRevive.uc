@@ -144,6 +144,22 @@ Begin:
 	Check("revive-client-pee-host", !CoopPawn(Lead.Pawn).bDowned && Lead.Pawn.Health > 1,
 		"contact"@CoopPawn(Lead.Pawn).ReviveProgress@"health"@Lead.Pawn.Health);
 
+	// The infected pee ends with the client noticing his disease: stock UrethraWeapon.NoticedDisease
+	// adds the clinic errand and shows the errands map, a forced screen that protects him from damage
+	// until he closes it (CoopPlayer.SendScreen). He closes it as a player would, through the screen
+	// itself, before the stages below hurt him: a screen left open would keep him protected across
+	// his respawn, and the team wipe would only take the host down.
+	for (i = 0; i < 32 && !Remote.ScreenProtected(); i++)
+		Sleep(0.25);
+	Check("revive-disease-errands-screen", Remote.ScreenProtected(), "");
+	for (i = 0; i < 40 && Remote.ScreenProtected(); i++)
+	{
+		if (i % 2 == 0)
+			Remote.ClientTestEndScreens();
+		Sleep(0.25);
+	}
+	Check("revive-disease-screen-closed", !Remote.ScreenProtected(), "");
+
 	// No help: use the real 30 second deadline, then existing delayed respawn.
 	Down(Victim);
 	Check("bleed-downed", Victim.bDowned, "");
