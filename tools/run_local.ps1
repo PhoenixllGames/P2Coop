@@ -20,7 +20,7 @@ param(
     [int]$ClientDelay = 0,
     [int]$ClientGap = 2,
     [string[]]$HostArgs = @(),
-    [string]$Res = '800x600',
+    [string]$Res = '',		# '': the copy's (testgame.local "res=", else 800x600)
     [int]$SlotBase = -1,	# -1: the copy's first window place (testgame.local "slot=", else 0)
     # Regex the host log must also match, e.g. 'P2CoopTest: DONE combat pass=\d+ fail=0'.
     [string]$PassPattern = '',
@@ -37,6 +37,7 @@ param(
 )
 . (Join-Path $PSScriptRoot 'testgame.ps1')
 if (-not $System) { $System = Get-TestSystem }
+if (-not $Res) { $Res = Get-TestSetting 'res' '800x600' }
 $ErrorActionPreference = 'Stop'
 . (Join-Path $PSScriptRoot 'gamewindows.ps1')
 $clientExe = Join-Path $System $Exe
