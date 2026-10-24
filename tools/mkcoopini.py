@@ -5,6 +5,7 @@ Writes P2Coop<name>.ini and P2Coop<name>User.ini for each name (e.g. Host Client
   --res WxH        windowed size (default 1024x768)
   --stock-menu     keep Shell.ShellRootWindow as the menu (default: P2Coop.CoopRootWindow)
   --player-name N  the same player name in every User.ini (like real players with the stock one)
+  --renderer R     override the renderer, e.g. Engine.NullRenderDevice for headless tests
 """
 import argparse
 import os
@@ -122,12 +123,16 @@ def main():
     ap = argparse.ArgumentParser(usage=__doc__)
     ap.add_argument("--res", default="1024x768")
     ap.add_argument("--stock-menu", action="store_true")
+    ap.add_argument("--renderer", default="", help="optional render device for headless tests")
     ap.add_argument("--player-name", default="", help="same player name for every copy (default: its own name)")
     ap.add_argument("system")
     ap.add_argument("names", nargs="+")
     a = ap.parse_args()
     menu = STOCK_MENU if a.stock_menu else COOP_MENU
-    game = make_game_ini(read(os.path.join(a.system, "Postal2.ini")), overrides(a.res, menu), menu)
+    forced = overrides(a.res, menu)
+    if a.renderer:
+        forced["Engine.Engine"]["RenderDevice"] = a.renderer
+    game = make_game_ini(read(os.path.join(a.system, "Postal2.ini")), forced, menu)
     user = read(os.path.join(a.system, "User.ini"))
     os.makedirs(os.path.join(a.system, "..", "SaveCoop"), exist_ok=True)
     for n in a.names:

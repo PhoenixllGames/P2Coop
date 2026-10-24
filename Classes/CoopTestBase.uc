@@ -139,10 +139,13 @@ function string CurrentMap()
 	return URL;
 }
 
-// Kills P (damage first; Died when damage is off, as in a cutscene).
+// Kills P (damage first; Died when damage is off, as in a cutscene). A player dies for good: these
+// tests cover death and respawn, so he does not go down first (CoopPawn; the revive test covers that).
 function Kill(Pawn P)
 {
 	log("P2CoopTest: killing"@P@"health"@P.Health);
+	if (CoopPawn(P) != None)
+		CoopPawn(P).bFinishingDown = true;
 	P.TakeDamage(10000, None, P.Location, vect(0,0,0), class'BaseFX.BulletDamage');
 	if (P.Health > 0)
 		P.Died(None, class'BaseFX.BulletDamage', P.Location);

@@ -10,7 +10,8 @@ function Get-TestSystem {
 
 # Other settings of this copy, so several copies can run tests at the same time: tools\testgame.local
 # lines "slot=N" (first window place, see gamewindows.ps1), "port=N" (game port), "mock=N" (mock
-# Steam port base); P2COOP_TEST_<KEY> overrides a line. Without them: slot 0, port 7777, mock 47000.
+# Steam port base), "display=\\.\DISPLAYn" (another monitor), "renderer=Engine.NullRenderDevice"
+# (no graphics, see mkcoopini.py --renderer); P2COOP_TEST_<KEY> overrides a line. Without them: slot 0, port 7777, mock 47000.
 function Get-TestSetting([string]$Key, $Default) {
     $env_ = [Environment]::GetEnvironmentVariable("P2COOP_TEST_$($Key.ToUpper())")
     if ($env_) { return $env_ }

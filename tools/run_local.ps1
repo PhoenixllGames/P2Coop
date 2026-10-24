@@ -45,6 +45,8 @@ $names = @('Host') + @(if ($Clients -gt 0) { 1..$Clients | ForEach-Object { "Cli
 
 $iniArgs = @('--res', $Res) + $(if ($StockMenu) { @('--stock-menu') } else { @() }) +
     $(if ($PlayerName) { @('--player-name', $PlayerName) } else { @() })
+$renderer = Get-TestSetting 'renderer' ''
+if ($renderer) { $iniArgs += @('--renderer', $renderer) }
 python -I (Join-Path $PSScriptRoot 'mkcoopini.py') @iniArgs $System @names | Out-Null
 foreach ($n in $names) { Remove-Item (Join-Path $System "$n.log") -ErrorAction SilentlyContinue }
 Remove-Item (Join-Path $System 'Running.ini') -ErrorAction SilentlyContinue
@@ -53,6 +55,7 @@ Get-Process -ErrorAction SilentlyContinue | Where-Object { $_.Path -and $_.Path 
 if (-not $Port) { $Port = [int](Get-TestSetting 'port' 7777) }
 if (-not $MockPortBase) { $MockPortBase = [int](Get-TestSetting 'mock' 47000) }
 if ($SlotBase -lt 0) { $SlotBase = [int](Get-TestSetting 'slot' 0) }
+if (-not $Display) { $Display = Get-TestSetting 'display' '' }
 Initialize-GameWindows $Display $Res $SlotBase
 
 $procs = @()
@@ -64,14 +67,14 @@ function GameIni([string]$Name) { if ($Ini) { $Ini } else { "P2Coop$Name.ini" } 
 
 function Start-Game([string]$Name, [string]$Url, [string[]]$Extra) {
     # Without "NewWindow" a second copy hands its URL to the first copy's window and exits.
-    $argLine = (@("`"$Url`"", '-NewWindow', '-nosteam', "ini=$(GameIni $Name)", "userini=P2Coop${Name}User.ini", "log=$Name.log") + $Extra) -join ' '
+    $argLine = (@("`"$Url`"", '-NewWindow', '-nosteam', '-unattended', "ini=$(GameIni $Name)", "userini=P2Coop${Name}User.ini", "log=$Name.log") + $Extra) -join ' '
     $path = if ($Name -eq 'Host') { $hostExe } else { $clientExe }
     Start-WithEnv $path $argLine $System (Get-BackgroundEnv ([array]::IndexOf($names, $Name)))
 }
 
 # Relay mode: starts P2CoopLink as <Name> in the mock, which starts the game; returns the game.
 function Start-Linked([string]$Name, [string[]]$Extra) {
-    $gameArgs = (@('-NewWindow', '-nosteam', "ini=$(GameIni $Name)", "userini=P2Coop${Name}User.ini", "log=$Name.log") + $Extra) -join ' '
+    $gameArgs = (@('-NewWindow', '-nosteam', '-unattended', "ini=$(GameIni $Name)", "userini=P2Coop${Name}User.ini", "log=$Name.log") + $Extra) -join ' '
     $mockName = if ($Name -eq 'Host') { 'Host' } elseif ($Name -eq 'Client1') { 'Client' } else { $Name }
     $linkArgs = if ($Name -eq 'Host') {
         @('host', $Map, '--game', "`"$gameRoot`"", '--port', $Port, '--url-extra', "`"$UrlExtra`"", '--game-args', "`"$gameArgs`"")

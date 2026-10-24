@@ -16,6 +16,7 @@ var bool bRespawning;		// server: dead, CoopRespawner brings it back at RespawnT
 var float RespawnTime;
 var float KitCheckTime;		// server: CoopGame.SpawnNear, a returning traveller's items should be here by then
 var bool bSpawnedHere;		// server: had a pawn on this level (CoopGame.RestartPlayer)
+var bool bCoopDown;			// down (CoopPawn): the controller stays in CoopDowned
 
 const ScreenMap = 0;		// ClientShowScreen
 const ScreenErrands = 1;
@@ -57,15 +58,104 @@ replication
 {
 	reliable if (Role == ROLE_Authority)
 		ClientSetCoopName, ClientShowScreen, ClientCutsceneStart, ClientCutsceneEnd;
+	reliable if (Role == ROLE_Authority)
+		ClientDownControl, bCoopDown;
 	unreliable if (Role == ROLE_Authority)
 		ClientCutsceneView;
 	reliable if (Role == ROLE_Authority)
 		ClientTestCommand, ClientTestFire, ClientTestDrive, ClientTestAim, ClientTestLook,
-		ClientTestScreens, ClientTestEndScreens, ClientTestCamera, ClientTestCorpse, ClientTestBones;
+		ClientTestScreens, ClientTestEndScreens, ClientTestCamera, ClientTestCorpse, ClientTestBones,
+		ClientTestNameplate, ClientTestRevive, ClientTestPee;
 	reliable if (Role == ROLE_Authority && bNetOwner)
 		bTestMode;
 	reliable if (Role < ROLE_Authority)
-		ServerTestSaw, ServerTestScreens, ServerTestCamera, ServerTestBones, ServerScreenClosed;
+		ServerTestSaw, ServerTestScreens, ServerTestCamera, ServerTestBones, ServerTestNameplate,
+		ServerTestRevive, ServerScreenClosed;
+}
+
+// Revive test: 0 takes out the urethra, 1 holds fire, 2 lets go.
+function ClientTestPee(byte Action)
+{
+	if (!TestAllowed("ClientTestPee") || Pawn == None)
+		return;
+	if (Action == 0)
+		UseZipper(0);
+	else if (Action == 1)
+	{
+		bFire = 1;
+		Fire(0);
+	}
+	else
+	{
+		bFire = 0;
+		if (P2Weapon(Pawn.Weapon) != None)
+			P2Weapon(Pawn.Weapon).ForceEndFire();
+	}
+}
+
+function ClientTestRevive(optional string PlayerName)
+{
+	local CoopPawn P;
+	local name Anim;
+	local float Frame, Rate;
+
+	if (!TestAllowed("ClientTestRevive"))
+		return;
+	P = CoopPawn(Pawn);
+	if (PlayerName != "")
+		foreach DynamicActors(class'CoopPawn', P)
+			if (P.PlayerReplicationInfo != None && P.PlayerReplicationInfo.PlayerName == PlayerName)
+				break;
+	if (P == None)
+	{
+		ServerTestRevive(false, 0, "no-pawn", false);
+		return;
+	}
+	P.GetAnimParams(0, Anim, Frame, Rate);
+	ServerTestRevive(P.bDowned, P.BleedRemaining, string(GetStateName()),
+		Anim == P.GetAnimDeathCrawl() && !P.bPhysicsAnimUpdate);
+}
+
+function ServerTestRevive(bool bDown, float Bleed, string StateName, bool bProne)
+{
+	local CoopTestRevive T;
+
+	if (!ServerTestRunning())
+		return;
+	foreach DynamicActors(class'CoopTestRevive', T)
+		if (T.Remote == self)
+			T.Report(bDown, Bleed, StateName, bProne);
+}
+
+function ClientTestNameplate(string PlayerName)
+{
+	local CoopPlayerStatus S;
+	local vector Head;
+	local float Fraction;
+	local bool bDraw;
+
+	if (!TestAllowed("ClientTestNameplate"))
+		return;
+	foreach DynamicActors(class'CoopPlayerStatus', S)
+		if (S.PRI != None && S.PRI.PlayerName == PlayerName)
+		{
+			if (CoopHUD(myHUD) != None)
+				bDraw = CoopHUD(myHUD).NameplateFor(S, Head, Fraction);
+			ServerTestNameplate(bDraw, S.PRI.PlayerName, Fraction);
+			return;
+		}
+	ServerTestNameplate(false, "", 0);
+}
+
+function ServerTestNameplate(bool bDraw, string PlayerName, float Fraction)
+{
+	local CoopTestNameplates T;
+
+	if (!ServerTestRunning())
+		return;
+	foreach DynamicActors(class'CoopTestNameplates', T)
+		if (T.Remote == self)
+			T.Report(bDraw, PlayerName, Fraction);
 }
 
 // True on the server for a player on another machine. P2's screens (map, news, stats, load) and
@@ -346,6 +436,13 @@ function bool ClientScreenRunning()
 
 event PlayerTick(float DeltaTime)
 {
+	// Down: no moves or actions. A screen, the host's cutscene or a scene that holds the pawn keeps
+	// the controller in its own state meanwhile; it comes back to CoopDowned after them.
+	if (bCoopDown && Pawn != None && !IsInState('CoopDowned') && !IsInState('Dead') && !IsInState('WaitScreen')
+		&& !IsInState('CoopClientScreen') && !IsInState('CoopClientCutscene') && !bClientWatching)
+		GotoState('CoopDowned');
+	else if (!bCoopDown && IsInState('CoopDowned'))
+		GotoState('PlayerWalking');
 	Super.PlayerTick(DeltaTime);
 	// The host's own screen protection ends with his screen.
 	if (ScreenProtectUntil != 0 && Level.NetMode != NM_Client && !IsRemote() && !IsInState('WaitScreen'))
@@ -376,6 +473,61 @@ event PlayerTick(float DeltaTime)
 	{
 		ScreenTicketDone = ScreenTicketSeen;
 		ServerScreenClosed(ScreenTicketDone);
+	}
+}
+
+function SetDownControl(bool bDown)
+{
+	bCoopDown = bDown;
+	ClientDownControl(bDown);
+	if (bDown)
+		GotoState('CoopDowned');
+	else if (IsInState('CoopDowned'))
+		GotoState('PlayerWalking');
+}
+
+function ClientDownControl(bool bDown)
+{
+	bCoopDown = bDown;
+	if (bDown)
+		GotoState('CoopDowned');
+	else if (IsInState('CoopDowned'))
+		GotoState('PlayerWalking');
+}
+
+state CoopDowned
+{
+	ignores Fire, AltFire, Use, Jump, UseZipper, DoKick, ThrowWeapon, ThrowPowerup,
+		PrevInvItem, NextInvItem, SwitchWeapon, SwitchToHands, ToggleToHands, PressingFire,
+		PressingAltFire, Suicide, QuickUseMap, RequestMap, RequestNews, QuickHealth, ActivateItem,
+		ActivateInventoryItem, PrevWeapon, NextWeapon, SwitchToBestWeapon, SwitchToLastWeapon,
+		SwitchToLastWeaponInGroup, GetWeapon, WeaponZoom, WeaponZoomIn, WeaponZoomOut, ServerUse;
+
+	function BeginState()
+	{
+		bFire = 0;
+		bAltFire = 0;
+		bPressedJump = false;
+		bShowWeaponHints = false;
+		if (Pawn != None)
+			Pawn.Acceleration = vect(0,0,0);
+	}
+
+	function PlayerMove(float DeltaTime)
+	{
+		// Keep looking around while waiting for help; send zero movement to the server.
+		aForward = 0;
+		aStrafe = 0;
+		aUp = 0;
+		UpdateRotation(DeltaTime, 1);
+		if (Role < ROLE_Authority)
+			ReplicateMove(DeltaTime, vect(0,0,0), DCLICK_None, rot(0,0,0));
+	}
+
+	function ProcessMove(float DeltaTime, vector NewAccel, eDoubleClickDir DoubleClickMove, rotator DeltaRot)
+	{
+		if (Pawn != None)
+			Pawn.Acceleration = vect(0,0,0);
 	}
 }
 
@@ -580,7 +732,9 @@ function bool ServerTestRunning()
 	return CoopGame(Level.Game) != None && CoopGame(Level.Game).Test != None;
 }
 
-// "QuickUseMap", "SwitchWeapon <n>", "NextWeapon", "PrevWeapon", "GetWeapon Inventory.<class>".
+// "QuickUseMap", "SwitchWeapon <n>", "NextWeapon", "PrevWeapon", "GetWeapon Inventory.<class>",
+// and what a downed player must not do (revive test): "ActivateItem", "QuickHealth",
+// "ActivateInventoryItem Inventory.<class>".
 static function bool TestCommandAllowed(string Cmd)
 {
 	local string Word, Arg;
@@ -599,11 +753,12 @@ static function bool TestCommandAllowed(string Cmd)
 	if (InStr(Arg, " ") >= 0)
 		return false;
 	Word = Caps(Word);
-	if (Word == "QUICKUSEMAP" || Word == "NEXTWEAPON" || Word == "PREVWEAPON")
+	if (Word == "QUICKUSEMAP" || Word == "NEXTWEAPON" || Word == "PREVWEAPON" || Word == "ACTIVATEITEM"
+		|| Word == "QUICKHEALTH")
 		return Arg == "";
 	if (Word == "SWITCHWEAPON")
 		return Arg != "" && string(int(Arg)) == Arg;
-	if (Word == "GETWEAPON")
+	if (Word == "GETWEAPON" || Word == "ACTIVATEINVENTORYITEM")
 		return Caps(Left(Arg, 10)) == "INVENTORY." && Len(Arg) > 10;
 	return false;
 }

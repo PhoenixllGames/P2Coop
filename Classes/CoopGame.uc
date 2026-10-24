@@ -362,6 +362,10 @@ function CoopTestBase SpawnTest(string Name)
 		return Spawn(class'CoopTestLoad');
 	if (Name ~= "combat")
 		return Spawn(class'CoopTestCombat');
+	if (Name ~= "nameplates")
+		return Spawn(class'CoopTestNameplates');
+	if (Name ~= "revive")
+		return Spawn(class'CoopTestRevive');
 	if (Left(Name, 6) ~= "travel")
 		return Spawn(class'CoopTestTravel');
 	if (Name ~= "errand")
@@ -730,6 +734,7 @@ function RestartPlayer(Controller aPlayer)
 	local CoopPlayer P;
 	local Pawn Anchor;
 
+	aPlayer.PawnClass = class'CoopPawn';	// can go down instead of dying (CoopPawn)
 	L = Leader();
 	P = CoopPlayer(aPlayer);
 	if (P == None || (aPlayer == L && !P.bRespawning && !P.bSpawnedHere))
@@ -767,8 +772,14 @@ function RestartPlayer(Controller aPlayer)
 	SpawnAtStart(aPlayer);
 }
 
-// A living human player's pawn other than Except's: the leader's first, or the pawn a cutscene
-// holds for him.
+// True for a living player's pawn that is not down (CoopPawn).
+function bool IsUp(Pawn P)
+{
+	return P != None && P.Health > 0 && (CoopPawn(P) == None || !CoopPawn(P).bDowned);
+}
+
+// A living human player's pawn other than Except's that is not down: the leader's first, or the
+// pawn a cutscene holds for him.
 function Pawn LivingPlayerPawn(Controller Except)
 {
 	local Controller C;
@@ -778,15 +789,15 @@ function Pawn LivingPlayerPawn(Controller Except)
 	L = Leader();
 	if (L != None && L != Except)
 	{
-		if (L.Pawn != None && L.Pawn.Health > 0)
+		if (IsUp(L.Pawn))
 			return L.Pawn;
 		if (L.Pawn == None)
 			SM = L.GetCurrentSceneManager();
-		if (SM != None && SM.OldPawn != None && SM.OldPawn.Health > 0 && (Except == None || SM.OldPawn != Except.Pawn))
+		if (SM != None && IsUp(SM.OldPawn) && (Except == None || SM.OldPawn != Except.Pawn))
 			return SM.OldPawn;
 	}
 	for (C = Level.ControllerList; C != None; C = C.NextController)
-		if (PlayerController(C) != None && C != Except && C.Pawn != None && C.Pawn.Health > 0)
+		if (PlayerController(C) != None && PlayerController(C).Player != None && C != Except && IsUp(C.Pawn))
 			return C.Pawn;
 	return None;
 }
@@ -1135,5 +1146,6 @@ defaultproperties
 	GameName="POSTAL 2 Co-op"
 	PlayerControllerClassName="P2Coop.CoopPlayer"
 	HUDType="P2Coop.CoopHUD"
+	DefaultPlayerClassName="P2Coop.CoopPawn"
 	MapScreenClassName="P2Coop.CoopMapScreen"
 }

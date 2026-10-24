@@ -7,6 +7,8 @@ if (-not $System) { $System = Get-TestSystem }
 $Only = @($Only | ForEach-Object { $_ -split ',' } | ForEach-Object { $_.Trim() } | Where-Object { $_ })
 
 $tests = @(
+    @{ Name = 'nameplates'; Map = 'suburbs-3'; Clients = 1; Timeout = 200; Extra = '' },
+    @{ Name = 'revive'; Map = 'suburbs-3'; Clients = 1; Timeout = 240; Extra = '?CoopRespawnDelay=3' },
     @{ Name = 'combat'; Map = 'suburbs-3'; Clients = 1; Timeout = 200; Extra = '' },
     @{ Name = 'travel'; Map = 'suburbs-3'; Clients = 2; Timeout = 700; Extra = '' },
     @{ Name = 'errand'; Map = 'Suburbs-1'; Clients = 1; Timeout = 200; Extra = '' },
@@ -28,6 +30,11 @@ foreach ($t in $tests) {
     }
     if ($Relay) { $args.Relay = $true }
     $out = & (Join-Path $PSScriptRoot 'run_local.ps1') @args
+    # The next test overwrites Host.log; retain each test's checks for failure diagnosis.
+    $hostLog = Join-Path $System 'Host.log'
+    if (Test-Path $hostLog) {
+        Copy-Item -LiteralPath $hostLog -Destination (Join-Path $PSScriptRoot "suite-$($t.Name).Host.log")
+    }
     $done = Select-String -Path (Join-Path $System 'Host.log') -Pattern "P2CoopTest: DONE $($t.Name) .*" -ErrorAction SilentlyContinue |
         Select-Object -Last 1 | ForEach-Object { $_.Line -replace '^ScriptLog: ', '' }
     $result = ($out | Select-String 'RESULT:' | Select-Object -Last 1).Line

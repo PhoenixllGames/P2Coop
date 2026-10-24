@@ -66,6 +66,7 @@ simulated function Tick(float DeltaTime)
 		{
 			NextUpdate = Level.TimeSeconds + UpdateInterval;
 			ReadGameState();
+			UpdatePlayers();
 		}
 	}
 	else if (Level.NetMode == NM_Client)
@@ -91,6 +92,28 @@ simulated function Tick(float DeltaTime)
 		if (Shadow != None && AppliedSerial >= 0 && Shadow.TheGameState != None
 			&& Shadow.TheGameState.CopRadioTime != CopRadioTime)
 			Shadow.TheGameState.CopRadioTime = CopRadioTime;
+	}
+}
+
+function UpdatePlayers()
+{
+	local Controller C;
+	local CoopPlayerStatus S;
+	local bool bFound;
+
+	for (C = Level.ControllerList; C != None; C = C.NextController)
+	{
+		if (PlayerController(C) == None || PlayerController(C).Player == None)
+			continue;
+		bFound = false;
+		foreach DynamicActors(class'CoopPlayerStatus', S)
+			if (S.TrackedPlayer == C)
+				bFound = true;
+		if (!bFound)
+		{
+			S = Spawn(class'CoopPlayerStatus');
+			S.TrackedPlayer = PlayerController(C);
+		}
 	}
 }
 

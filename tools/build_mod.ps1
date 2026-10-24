@@ -22,3 +22,5 @@ if ($p.ExitCode -ne 0 -or -not (Test-Path $u)) {
     "make failed (exit $($p.ExitCode))"; exit 1
 }
 "built $u"
+# Keep the runtime translations with the package used by the tests.
+Copy-Item -LiteralPath (Join-Path $PSScriptRoot '../System/P2CoopRu.int') -Destination (Join-Path $System 'P2CoopRu.int')
