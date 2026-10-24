@@ -32,6 +32,9 @@ def overrides(res, menu):
         "ALAudio.ALAudioSubsystem": {"MusicVolume": "0.0", "AmbientVolume": "0.0", "SoundVolume": "0.0"},
         # CoopRootWindow fixes the join crash below the menu's MinRes.
         "Engine.Engine": {"BaseMenu": menu},
+        # The map and newspaper screens switch to MinRes (1024x768) while they show; test copies
+        # keep their window size so windows side by side do not overlap.
+        "Postal2Game.P2Screen": {"MinRes": res.lower()},
     }
 
 
@@ -90,6 +93,11 @@ def make_game_ini(src, forced, menu):
         out.append(line)
     if section is not None:
         flush(section)
+    # Overridden sections the source does not have at all.
+    present = set(m.group(1) for m in (re.match(r"\[(.+)\]\s*$", l.strip()) for l in src) if m)
+    for sec, keys in forced.items():
+        if sec not in present:
+            out += ["", "[%s]" % sec] + ["%s=%s" % (k, v) for k, v in keys.items()]
     if menu != STOCK_MENU:
         # A subclass reads its config vars from its own section.
         out += ["", "[%s]" % menu] + section_body(src, STOCK_MENU)

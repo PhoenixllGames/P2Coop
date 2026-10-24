@@ -1,5 +1,7 @@
-# Puts test copies of the game on a secondary monitor: each copy is started with
-# P2COOP_WINDOW_POS=x,y and P2CoopHk.dll (tools/ucc5100/bgwindows.h) places its window there.
+# Puts test copies of the game side by side on the main monitor without overlapping: each copy is
+# started with P2COOP_WINDOW_POS=x,y and P2CoopHk.dll (tools/ucc5100/bgwindows.h) places its
+# window there. Places form a grid sized for the game resolution; a copy of the game used by
+# another worktree takes other places (testgame.local "slot=").
 # Focus stays stock: blocking activation broke map changes.
 # This script picks the monitor and the slots, and counts how often a game had the foreground.
 
@@ -12,7 +14,7 @@ if (-not ('P2Coop.Fg' -as [type])) {
 '@
 }
 
-$script:GW = @{ Screen = $null; Stolen = 0; Classes = @{} }
+$script:GW = @{ Screen = $null; Stolen = 0; Classes = @{}; SlotW = 816; SlotH = 639; SlotBase = 0 }
 
 # Counts how often a game process owns the foreground window (it never should), by window class.
 function Watch-Foreground($Procs) {
@@ -31,22 +33,28 @@ function Get-ForegroundSteals {
     "$($script:GW.Stolen)" + $(if ($script:GW.Stolen) { " (" + (($script:GW.Classes.GetEnumerator() | ForEach-Object { "$($_.Key)=$($_.Value)" }) -join ', ') + ")" })
 }
 
-function Initialize-GameWindows([string]$Display = '') {
+# $Res is the game resolution (a window adds its frame: 16 x 39 pixels); $SlotBase the first place.
+function Initialize-GameWindows([string]$Display = '', [string]$Res = '800x600', [int]$SlotBase = 0) {
     $screens = [System.Windows.Forms.Screen]::AllScreens
-    $pick = if ($Display) { $screens | Where-Object DeviceName -eq $Display } else {
-        $screens | Where-Object { -not $_.Primary } |
-            Sort-Object { $_.WorkingArea.Width * $_.WorkingArea.Height } -Descending | Select-Object -First 1 }
+    $pick = if ($Display) { $screens | Where-Object DeviceName -eq $Display } else { [System.Windows.Forms.Screen]::PrimaryScreen }
     if (-not $pick) { $pick = [System.Windows.Forms.Screen]::PrimaryScreen }
+    $w, $h = $Res -split 'x'
     $script:GW.Screen = $pick
-    "game windows go to $($pick.DeviceName) $($pick.WorkingArea)"
+    $script:GW.SlotW = [int]$w + 16
+    $script:GW.SlotH = [int]$h + 39
+    $script:GW.SlotBase = $SlotBase
+    "game windows go to $($pick.DeviceName) $($pick.WorkingArea), places from $SlotBase"
 }
 
-# "x,y" of window slot $Index (0 = host), tiled top to bottom, then left to right.
-function Get-WindowSlot([int]$Index, [int]$Width = 1040, [int]$Height = 800) {
+# "x,y" of window place $Index of this run (0 = host), after SlotBase; left to right, then the next
+# row. Past the last place it starts over (then windows overlap).
+function Get-WindowSlot([int]$Index) {
     $a = $script:GW.Screen.WorkingArea
-    $perCol = [Math]::Max(1, [Math]::Floor($a.Height / $Height))
-    $x = $a.Left + [Math]::Floor($Index / $perCol) * $Width
-    $y = $a.Top + ($Index % $perCol) * $Height
+    $cols = [Math]::Max(1, [Math]::Floor($a.Width / $script:GW.SlotW))
+    $rows = [Math]::Max(1, [Math]::Floor($a.Height / $script:GW.SlotH))
+    $n = ($Index + $script:GW.SlotBase) % ($cols * $rows)
+    $x = $a.Left + ($n % $cols) * $script:GW.SlotW
+    $y = $a.Top + [Math]::Floor($n / $cols) * $script:GW.SlotH
     "$x,$y"
 }
 

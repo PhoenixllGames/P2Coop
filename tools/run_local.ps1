@@ -10,7 +10,7 @@ param(
     [string]$System = '',
     [string]$Map = 'suburbs-3',
     [string]$Game = 'P2Coop.CoopGame',
-    [int]$Port = 7777,
+    [int]$Port = 0,		# 0: the copy's port (testgame.local "port=", else 7777)
     [int]$Clients = 1,
     [int]$Timeout = 120,
     [string]$Until = 'P2CoopProbe: DONE',
@@ -20,7 +20,8 @@ param(
     [int]$ClientDelay = 0,
     [int]$ClientGap = 2,
     [string[]]$HostArgs = @(),
-    [string]$Res = '1024x768',
+    [string]$Res = '800x600',
+    [int]$SlotBase = -1,	# -1: the copy's first window place (testgame.local "slot=", else 0)
     # Regex the host log must also match, e.g. 'P2CoopTest: DONE combat pass=\d+ fail=0'.
     [string]$PassPattern = '',
     [string]$Display = '',
@@ -29,7 +30,7 @@ param(
     # Run every copy through P2CoopLink with the mock steam_api.dll (<game>\P2CoopLinkMock):
     # the game traffic goes game -> link -> mock "Steam" (localhost UDP) -> link -> game.
     [switch]$Relay,
-    [int]$MockPortBase = 47000,
+    [int]$MockPortBase = 0,	# 0: the copy's (testgame.local "mock=", else 47000)
     # One game ini for every copy (e.g. a windowed copy of the installer's P2CoopGame.ini)
     # instead of the per-copy ones from mkcoopini.py.
     [string]$Ini = ''
@@ -49,7 +50,10 @@ foreach ($n in $names) { Remove-Item (Join-Path $System "$n.log") -ErrorAction S
 Remove-Item (Join-Path $System 'Running.ini') -ErrorAction SilentlyContinue
 # A copy left over from an earlier run (a crash window) would keep files open and the port busy.
 Get-Process -ErrorAction SilentlyContinue | Where-Object { $_.Path -and $_.Path -like "$(Split-Path $System -Parent)\*" } | Stop-Process -Force
-Initialize-GameWindows $Display
+if (-not $Port) { $Port = [int](Get-TestSetting 'port' 7777) }
+if (-not $MockPortBase) { $MockPortBase = [int](Get-TestSetting 'mock' 47000) }
+if ($SlotBase -lt 0) { $SlotBase = [int](Get-TestSetting 'slot' 0) }
+Initialize-GameWindows $Display $Res $SlotBase
 
 $procs = @()
 $links = @()
