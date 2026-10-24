@@ -165,6 +165,24 @@ function FinishDown()
 	Died(DownKiller, DownDamage, Location);
 }
 
+// Server: the controller is being destroyed (a remote player left). Stock
+// PlayerController.Destroyed kills the pawn next; that death must not put him down, nor be
+// swallowed when he is down already, or an empty prone pawn would stay on the level for good.
+// Nothing is sent to the leaving controller.
+function ControllerLeaving()
+{
+	bFinishingDown = true;
+	if (!bDowned)
+		return;
+	bDowned = false;
+	BleedRemaining = 0;
+	bCanPickupInventory = true;
+	bPlayer = true;
+	Weapon = StowedWeapon;
+	StowedWeapon = None;
+	UpdateDownPose();
+}
+
 function Died(Controller Killer, class<DamageType> DamageType, vector HitLocation)
 {
 	if (bDowned && !bFinishingDown)

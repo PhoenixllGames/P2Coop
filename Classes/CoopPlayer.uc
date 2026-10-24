@@ -659,10 +659,16 @@ function DisplayLoadForcedNoFade(Texture LoadTex, String URL)
 }
 
 // Server: a remote player's controller goes (his game closed or his connection dropped).
+// Super.Destroyed kills his pawn (stock PlayerController.Destroyed); CoopPawn must let it die.
 simulated event Destroyed()
 {
-	if (Role == ROLE_Authority && Viewport(Player) == None && CoopGame(Level.Game) != None)
-		CoopGame(Level.Game).PlayerLeaving(self);
+	if (Role == ROLE_Authority && Viewport(Player) == None)
+	{
+		if (CoopPawn(Pawn) != None)
+			CoopPawn(Pawn).ControllerLeaving();
+		if (CoopGame(Level.Game) != None)
+			CoopGame(Level.Game).PlayerLeaving(self);
+	}
 	Super.Destroyed();
 }
 

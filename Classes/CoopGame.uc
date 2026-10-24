@@ -414,6 +414,16 @@ function SendPlayerTo(PlayerController player, String URL, optional bool bMaybeP
 		return;
 	}
 	bMayWait = MayDeferSend(URL);
+	// A downed leader (CoopPawn) would arrive standing: his down state does not travel, and
+	// BringLeaderBack is for a dead one.
+	if (bMayWait && L.Pawn != None && L.Pawn.Health > 0 && !IsUp(L.Pawn))
+	{
+		log("P2Coop: SendPlayerTo from"@player@"refused, the leader is down"@URL);
+		if (player != None)
+			player.ClientMessage("The host is down and cannot travel now.");
+		PendingSendURL = "";
+		return;
+	}
 	if (L != player)
 	{
 		if (L.Pawn == None || L.Pawn.Health <= 0)

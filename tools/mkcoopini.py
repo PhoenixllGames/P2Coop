@@ -36,7 +36,8 @@ def overrides(res, menu):
         # The map and newspaper screens switch to MinRes (1024x768) while they show; test copies
         # keep their window size so windows side by side do not overlap.
         "Postal2Game.P2Screen": {"MinRes": res.lower()},
-        # Co-op saves have their own folder, as install.ps1 sets it.
+        # Test copies only: co-op saves get their own folder and slot list (CoopSlotInfoMgr).
+        # Players' installs keep the single-player save folder (install.ps1 sets no SavePath).
         "Core.System": {"SavePath": "..\\SaveCoop"},
     }
 

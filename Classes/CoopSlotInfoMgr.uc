@@ -13,10 +13,19 @@
 class CoopSlotInfoMgr extends SlotInfoMgr
 	config(P2CoopSavedGameInfo);
 
+var byte OwnSaveFolder;		// HasOwnSaveFolder's answer: 0 not asked yet, 1 no, 2 yes
+
 // True when saves go to their own co-op folder ([Core.System] SavePath=..\SaveCoop).
+// CoopRootWindow asks every frame and the setting does not change while the game runs.
 static function bool HasOwnSaveFolder(Actor A)
 {
-	return Right(A.ConsoleCommand("get Core.System SavePath"), 8) ~= "SaveCoop";
+	if (default.OwnSaveFolder == 0)
+	{
+		default.OwnSaveFolder = 1;
+		if (Right(A.ConsoleCommand("get Core.System SavePath"), 8) ~= "SaveCoop")
+			default.OwnSaveFolder = 2;
+	}
+	return default.OwnSaveFolder == 2;
 }
 
 // Gives the game info of PC's level the co-op slot list.
