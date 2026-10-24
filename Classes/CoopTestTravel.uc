@@ -13,6 +13,7 @@ var string Phase, StartMap, ClientName;
 var int StartDay;
 var Telepad Pad;
 var float Dist;
+var int Tries;		// state code loop counter (no locals there)
 
 function PostBeginPlay()
 {
@@ -94,9 +95,18 @@ Begin:
 	Check(Phase$"-client-near-leader", Dist < 800, "distance"@Dist);
 	Check(Phase$"-both-alive", Lead.Pawn.Health > 0 && Remote.Pawn.Health > 0,
 		"health"@Lead.Pawn.Health@Remote.Pawn.Health);
+	// Right after a join the client can still be settling in (a slow machine answers late, and the
+	// leader's pawn may not be his yet): ask again every 2 seconds until he reports the leader,
+	// for up to 20 seconds.
 	bGotReport = false;
-	Remote.ClientTestLook(Lead.PlayerReplicationInfo.PlayerName);
-	Sleep(2.0);
+	bSawLeader = false;
+	for (Tries = 0; Tries < 40 && !(bGotReport && bSawLeader); Tries++)
+	{
+		if (Tries % 4 == 0)
+			Remote.ClientTestLook(Lead.PlayerReplicationInfo.PlayerName);
+		Sleep(0.5);
+	}
+	log("P2CoopTest: leader report after"@Tries * 0.5@"s");
 	Check(Phase$"-client-sees-leader", bGotReport && bSawLeader
 		&& VSize(SeenLeaderLoc - Lead.Pawn.Location) < 64, "client"@SeenLeaderLoc@"server"@Lead.Pawn.Location);
 
