@@ -1,5 +1,5 @@
-# Starts one copy of the game (P2CoopHost.exe, co-op ini) to the main menu, optionally runs
-# clicks, and saves a picture of its window. For checking the menus by eye.
+# Starts one copy of the game (the stock Postal2.exe with P2CoopHk, co-op ini) to the main menu,
+# optionally runs clicks, and saves a picture of its window. For checking the menus by eye.
 # Usage: menushot.ps1 [-Out <png>] [-Wait 30] [-Clicks '520,420',...] [-Keys 0x28,0x0D]
 param(
     [string]$System = '',
@@ -24,8 +24,8 @@ public struct RECT { public int Left, Top, Right, Bottom; }
 '@
 }
 python -I (Join-Path $PSScriptRoot 'mkcoopini.py') $System Menu | Out-Null
-Initialize-GameWindows | Out-Null
-$p = Start-WithEnv (Join-Path $System 'P2CoopHost.exe') '-NewWindow -nosteam ini=P2CoopMenu.ini userini=P2CoopMenuUser.ini log=Menu.log' $System (Get-BackgroundEnv 0)
+Initialize-GameWindows '' '800x600' ([int](Get-TestSetting 'slot' 0)) | Out-Null
+$p = Start-WithEnv (Join-Path $System 'Postal2.exe') '-NewWindow -nosteam ini=P2CoopMenu.ini userini=P2CoopMenuUser.ini log=Menu.log' $System (Get-BackgroundEnv 0)
 Start-Sleep $Wait
 $p.Refresh()
 $h = $p.MainWindowHandle

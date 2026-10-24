@@ -13,6 +13,7 @@
 
 #include <windows.h>
 #include "iathook.h"
+#include "ue2.h"
 
 // ---- Core.dll exports used here (5100 mangled names, TCHAR = wchar_t) ----
 
@@ -109,7 +110,6 @@ static int RunCommandlet()
 
     StaticLoadClassFn LoadClass = (StaticLoadClassFn)Core("?StaticLoadClass@UObject@@SAPAVUClass@@PAV2@PAV1@PB_W2KPAVUPackageMap@@@Z");
     void* CommandletClass = Core("?PrivateStaticClass@UCommandlet@@0VUClass@@A");
-    const DWORD LOAD_NoWarn = 0x2000, LOAD_Quiet = 0x4000;
 
     // "make" -> Editor.MakeCommandlet, like UCC's lookup through the .int registry.
     wchar_t Name[300];

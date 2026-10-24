@@ -3,6 +3,8 @@
 param([switch]$Relay, [string[]]$Only = @(), [string]$System = '')
 . (Join-Path $PSScriptRoot 'testgame.ps1')
 if (-not $System) { $System = Get-TestSystem }
+# "powershell -File run_suite.ps1 -Only combat,travel" passes one string: split it.
+$Only = @($Only | ForEach-Object { $_ -split ',' } | ForEach-Object { $_.Trim() } | Where-Object { $_ })
 
 $tests = @(
     @{ Name = 'combat'; Map = 'suburbs-3'; Clients = 1; Timeout = 200; Extra = '' },
@@ -38,3 +40,4 @@ foreach ($t in $tests) {
 $results
 $failed = @($results | Where-Object { $_ -notmatch 'RESULT: PASS' }).Count
 "SUITE FINISHED $($results.Count - $failed) pass / $failed not pass"
+if (-not $results) { "no test is named $($Only -join ', ')"; exit 1 }

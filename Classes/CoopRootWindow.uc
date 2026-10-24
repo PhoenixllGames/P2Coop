@@ -1,6 +1,7 @@
 //=============================================================================
-// CoopRootWindow: the shell menu for co-op copies of the game ([Engine.Engine]
-// BaseMenu=P2Coop.CoopRootWindow, written by tools/mkcoopini.py).
+// CoopRootWindow: the shell menu of the game with P2Coop ([Engine.Engine]
+// BaseMenu=P2Coop.CoopRootWindow, which the installer puts in Postal2.ini; tests:
+// tools/mkcoopini.py).
 //
 // 1. Below the menu's MinRes (1024 wide) the stock menu switches to MinRes while it
 // shows and, in MenuShowing.EndState, switches back with "SetRes" if
@@ -52,10 +53,10 @@ function PostRender(Canvas Canvas)
 	Super.PostRender(Canvas);
 	bInPostRender = false;
 	WatchConnection();
-	if (!bMenuTestDone && MyMenu != None && IsMainMenuShowing())
+	if ((!bMenuTestDone && MyMenu != None && IsMainMenuShowing()) || MenuTestPick != "")
 		bRequiresTick = true;
-	// The Co-op menu polls the Steam relay from our Tick.
-	if (CoopMenu(MyMenu) != None && CoopMenu(MyMenu).Waiting != "")
+	// The Steam page polls the Steam relay from our Tick.
+	if (CoopSteamMenu(MyMenu) != None && CoopSteamMenu(MyMenu).Waiting != "")
 		bRequiresTick = true;
 }
 
@@ -82,25 +83,28 @@ function Tick(float Delta)
 	}
 	if (!bMenuTestDone && MyMenu != None && IsMainMenuShowing())
 		MenuTest();
-	if (CoopMenu(MyMenu) != None)
-		CoopMenu(MyMenu).Poll();
-	if (MenuTestPick != "" && CoopMenu(MyMenu) != None)
+	if (CoopSteamMenu(MyMenu) != None)
+		CoopSteamMenu(MyMenu).Poll();
+	if (MenuTestPick != "" && CoopSteamMenu(MyMenu) != None)
 	{
-		CoopMenu(MyMenu).TestPick(MenuTestPick);
+		CoopSteamMenu(MyMenu).TestPick(MenuTestPick);
 		MenuTestPick = "";
 	}
+	else if (MenuTestPick != "" && CoopMenu(MyMenu) != None)
+		CoopMenu(MyMenu).OpenSteam();
 }
 
-// Tests only: with P2COOP_MENU_TEST=host or join (read by P2CoopHk.dll), the first main menu
-// opens Co-op and picks Steam host or join, as a click would. The pick waits for the next tick:
-// going to the new menu makes it again.
+// Tests only: with P2COOP_MENU_TEST=host, join or leave (read by P2CoopHk), the first main menu
+// opens Co-op, then its Steam page, and picks "Create game" or the first friend's game listed,
+// as a click would, or presses Escape once the games are listed. Each step waits for the next
+// tick: going to a new menu makes it again.
 function MenuTest()
 {
 	local string Pick;
 
 	bMenuTestDone = true;
 	Pick = ViewportOwner.Actor.ConsoleCommand("P2COOP MENUTEST");
-	if (Pick != "host" && Pick != "join")
+	if (Pick != "host" && Pick != "join" && Pick != "leave")
 		return;
 	log("P2Coop: menu test picks"@Pick);
 	GoToMenu(MyMenu.Class, class'CoopMenu');

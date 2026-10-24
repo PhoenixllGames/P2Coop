@@ -1,5 +1,5 @@
-# Puts test copies of the game side by side on the main monitor without overlapping: each copy is
-# started with P2COOP_WINDOW_POS=x,y and P2CoopHk.dll (tools/ucc5100/bgwindows.h) places its
+# Puts test copies of the game side by side on the primary monitor (or the -Display one) without overlapping: each copy is
+# started with P2COOP_WINDOW_POS=x,y and P2CoopHk (dinput8.dll, tools/ucc5100/bgwindows.h) places its
 # window there. Places form a grid sized for the game resolution; a copy of the game used by
 # another worktree takes other places (testgame.local "slot=").
 # Focus stays stock: blocking activation broke map changes.
@@ -75,7 +75,7 @@ function Start-WithEnv([string]$Exe, [string]$ArgLine, [string]$Dir, [hashtable]
     }
 }
 
-# Window-placement variables for copy number $Index (P2CoopHk.dll puts the window in that slot).
+# Window-placement variables for copy number $Index (P2CoopHk puts the window in that slot).
 function Get-BackgroundEnv([int]$Index) {
     @{ P2COOP_WINDOW_POS = (Get-WindowSlot $Index) }
 }

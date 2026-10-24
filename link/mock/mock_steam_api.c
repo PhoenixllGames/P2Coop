@@ -7,12 +7,14 @@
  *
  * It exports the subset of the Steamworks flat C API that P2CoopLink uses and fakes:
  *  - the Steam ID: from P2COOP_MOCK_STEAM_NAME (Host=1, Client=2, Client<n>=1+n, others hashed);
- *  - lobbies: lobby id = LOBBY_BASE + owner number, joining sends a request to the owner process;
+ *  - lobbies: lobby id = LOBBY_BASE + owner number, joining sends a request to the owner process,
+ *    which keeps the member list (P2Coop) and tells the members when it leaves its lobby;
  *  - ISteamNetworkingMessages: datagrams over localhost UDP, port P2COOP_MOCK_STEAM_PORT_BASE
  *    (default 47000) + number. Like the real thing, the first message from an unknown user raises
  *    SteamNetworkingMessagesSessionRequest_t and is held until AcceptSessionWithUser; there is no
  *    notification when a peer goes away.
- *  - friends: "Host" is the only friend and plays AppID 480 in lobby LOBBY_BASE + 1.
+ *  - friends: "Host" is the only friend and plays AppID 480 in lobby LOBBY_BASE + 1; lobby data
+ *    "host" is the owner's name (P2Coop).
  * Struct layouts follow the Windows 32 bit SDK (callbacks packed to 8). P2Coop: the message's
  * sender identity is at offset 12, as in the real 32 bit steam_api.dll.
  * P2COOP_MOCK_STEAM_LOG=1 writes mock_steam.log in the working directory.
@@ -100,9 +102,11 @@ static Held *g_held_head, *g_held_tail;   /* from sessions not accepted yet */
 #define MAX_SESS 64
 static u64 g_accepted[MAX_SESS]; static int g_accepted_n;
 static u64 g_requested[MAX_SESS]; static int g_requested_n;
+static u64 g_members[MAX_SESS]; static int g_members_n; /* P2Coop: who joined my lobby */
 
 static int has(u64 *arr, int n, u64 v) { for (int i = 0; i < n; i++) if (arr[i] == v) return 1; return 0; }
 static void add_u64(u64 *arr, int *n, u64 v) { if (!has(arr, *n, v) && *n < MAX_SESS) arr[(*n)++] = v; }
+static void del_u64(u64 *arr, int *n, u64 v) { for (int i = 0; i < *n; i++) if (arr[i] == v) { arr[i] = arr[--(*n)]; return; } }
 
 static void push(Held **head, Held **tail, Held *h)
 {
@@ -251,8 +255,11 @@ static void net_pump(void)
         } else if (h.type == PK_JOIN_REQ) {
             if (g_my_lobby && h.lobby == g_my_lobby) {
                 net_send(h.from, PK_JOIN_OK, h.lobby, 0, 0, NULL, 0);
-                LobbyChatUpdateCb u = { g_my_lobby, h.from, h.from, 1 };
-                post_cb(506, &u, sizeof(u));
+                if (!has(g_members, g_members_n, h.from)) { /* the request is repeated until answered */
+                    add_u64(g_members, &g_members_n, h.from);
+                    LobbyChatUpdateCb u = { g_my_lobby, h.from, h.from, 1 };
+                    post_cb(506, &u, sizeof(u));
+                }
             } else net_send(h.from, PK_JOIN_FAIL, h.lobby, 0, 0, NULL, 0);
         } else if (h.type == PK_JOIN_OK || h.type == PK_JOIN_FAIL) {
             if (g_join_res && !g_join_res->done) {
@@ -263,7 +270,11 @@ static void net_pump(void)
             }
         } else if (h.type == PK_LEAVE) {
             if (g_my_lobby && h.lobby == g_my_lobby) {
+                del_u64(g_members, &g_members_n, h.from);
                 LobbyChatUpdateCb u = { g_my_lobby, h.from, h.from, 2 };
+                post_cb(506, &u, sizeof(u));
+            } else if (g_joined_lobby && h.lobby == g_joined_lobby) { /* P2Coop: the owner left */
+                LobbyChatUpdateCb u = { g_joined_lobby, h.from, h.from, 2 };
                 post_cb(506, &u, sizeof(u));
             }
         }
@@ -335,7 +346,25 @@ API u64 SteamAPI_ISteamMatchmaking_JoinLobby(void *self, u64 lobby)
 API void SteamAPI_ISteamMatchmaking_LeaveLobby(void *self, u64 lobby)
 {
     if (lobby == g_joined_lobby) { net_send(STEAMID_BASE + (unsigned)(lobby - LOBBY_BASE), PK_LEAVE, lobby, 0, 0, NULL, 0); g_joined_lobby = 0; }
-    if (lobby == g_my_lobby) g_my_lobby = 0;
+    if (lobby && lobby == g_my_lobby) {
+        for (int i = 0; i < g_members_n; i++) net_send(g_members[i], PK_LEAVE, lobby, 0, 0, NULL, 0);
+        g_members_n = 0;
+        g_my_lobby = 0;
+    }
+}
+/* P2Coop: the owner first, then the members (the owner's list; a member knows itself and the owner). */
+API int SteamAPI_ISteamMatchmaking_GetNumLobbyMembers(void *self, u64 lobby)
+{
+    if (g_my_lobby && lobby == g_my_lobby) return 1 + g_members_n;
+    if (g_joined_lobby && lobby == g_joined_lobby) return 2;
+    return 0;
+}
+API u64 SteamAPI_ISteamMatchmaking_GetLobbyMemberByIndex(void *self, u64 lobby, int i)
+{
+    if (g_my_lobby && lobby == g_my_lobby) return i == 0 ? g_sid : i >= 1 && i <= g_members_n ? g_members[i - 1] : 0;
+    if (g_joined_lobby && lobby == g_joined_lobby)
+        return i == 0 ? STEAMID_BASE + (unsigned)(lobby - LOBBY_BASE) : i == 1 ? g_sid : 0;
+    return 0;
 }
 API bool SteamAPI_ISteamMatchmaking_SetLobbyData(void *self, u64 lobby, const char *k, const char *v) { return 1; }
 API bool SteamAPI_ISteamMatchmaking_SetLobbyJoinable(void *self, u64 lobby, bool j) { return 1; }
@@ -367,7 +396,14 @@ API bool SteamAPI_ISteamFriends_GetFriendGamePlayed(void *self, u64 sid, FriendG
 }
 API const char *SteamAPI_ISteamFriends_GetFriendPersonaName(void *self, u64 sid) { return num_name(sid_num(sid)); }
 API const char *SteamAPI_ISteamFriends_GetPersonaName(void *self) { init_identity(); return num_name(g_num); }
-API const char *SteamAPI_ISteamMatchmaking_GetLobbyData(void *self, u64 lobby, const char *k) { return k && !strcmp(k, "p2coop") ? "1" : ""; }
+/* P2Coop: what the host puts in its lobby (p2cooplink.c host_cb): the protocol and its name. */
+API const char *SteamAPI_ISteamMatchmaking_GetLobbyData(void *self, u64 lobby, const char *k)
+{
+    if (k && !strcmp(k, "p2coop")) return "1";
+    if (k && !strcmp(k, "host") && lobby > LOBBY_BASE) return num_name((unsigned)(lobby - LOBBY_BASE));
+    return "";
+}
+API bool SteamAPI_ISteamMatchmaking_RequestLobbyData(void *self, u64 lobby) { return 1; }
 API void SteamAPI_ISteamNetworkingUtils_InitRelayNetworkAccess(void *self) {}
 
 /* ---- identity helpers: type int32, size int32, steamid at +8 ---- */

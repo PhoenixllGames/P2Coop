@@ -1,11 +1,11 @@
 # Runs a co-op host and N clients of the test copy on this PC and collects their logs.
 # The host is a listen server bound to 127.0.0.1; every copy gets its own P2Coop<Name>.ini
-# from mkcoopini.py (silent, windowed). Windows go to a secondary monitor (gamewindows.ps1,
-# window placement of P2CoopHk.dll).
-# Every copy runs P2CoopHost.exe (engine fixes and window placement, tools/ucc5100); players'
-# clients use the stock Postal2.exe, which -Exe Postal2.exe tests (without window placement).
+# from mkcoopini.py (silent, windowed). Windows go side by side on the primary monitor
+# (or -Display \\.\DISPLAY2; gamewindows.ps1, window placement of P2CoopHk).
+# Every copy runs the stock Postal2.exe, as players do; it loads P2CoopHk (the engine fixes and the
+# window placement, tools/ucc5100) as System\dinput8.dll.
 # Usage: run_local.ps1 [-Map suburbs-3] [-Clients 1] [-Timeout 120] [-Until 'P2CoopProbe: DONE']
-#                      [-HostExe P2CoopHost.exe] [-Exe P2CoopHost.exe] [-Display \\.\DISPLAY1]
+#                      [-HostExe Postal2.exe] [-Exe Postal2.exe] [-Display \\.\DISPLAY1]
 param(
     [string]$System = '',
     [string]$Map = 'suburbs-3',
@@ -15,8 +15,8 @@ param(
     [int]$Timeout = 120,
     [string]$Until = 'P2CoopProbe: DONE',
     [string]$UrlExtra = '',
-    [string]$Exe = 'P2CoopHost.exe',
-    [string]$HostExe = 'P2CoopHost.exe',
+    [string]$Exe = 'Postal2.exe',
+    [string]$HostExe = 'Postal2.exe',
     [int]$ClientDelay = 0,
     [int]$ClientGap = 2,
     [string[]]$HostArgs = @(),
@@ -31,7 +31,7 @@ param(
     # the game traffic goes game -> link -> mock "Steam" (localhost UDP) -> link -> game.
     [switch]$Relay,
     [int]$MockPortBase = 0,	# 0: the copy's (testgame.local "mock=", else 47000)
-    # One game ini for every copy (e.g. a windowed copy of the installer's P2CoopGame.ini)
+    # One game ini for every copy (e.g. a windowed copy of a Postal2.ini the installer edited)
     # instead of the per-copy ones from mkcoopini.py.
     [string]$Ini = ''
 )
@@ -41,7 +41,7 @@ $ErrorActionPreference = 'Stop'
 . (Join-Path $PSScriptRoot 'gamewindows.ps1')
 $clientExe = Join-Path $System $Exe
 $hostExe = Join-Path $System $HostExe
-$names = @('Host') + (1..$Clients | ForEach-Object { "Client$_" })
+$names = @('Host') + @(if ($Clients -gt 0) { 1..$Clients | ForEach-Object { "Client$_" } })
 
 $iniArgs = @('--res', $Res) + $(if ($StockMenu) { @('--stock-menu') } else { @() }) +
     $(if ($PlayerName) { @('--player-name', $PlayerName) } else { @() })
@@ -124,7 +124,7 @@ $ok = $host_ -and (Wait-Log 'Host' "TcpNetDriver on port $Port" 60)
 $clientsExited = @()
 if ($ok) {
     Wait-Seconds $ClientDelay
-    foreach ($n in $names[1..$names.Count]) {
+    foreach ($n in $(if ($names.Count -gt 1) { $names[1..($names.Count - 1)] })) {
         $c = if ($Relay) { Start-Linked $n @() } else { Start-Game $n "127.0.0.1:$Port" @() }
         if (-not $c) { $ok = $false; break }
         $procs += $c

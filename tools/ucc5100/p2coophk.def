@@ -1,3 +1,9 @@
-LIBRARY P2CoopHk
+LIBRARY dinput8
 EXPORTS
-    GetSaveFileNameA=HkGetSaveFileNameA
+    DirectInput8Create=HkDirectInput8Create
+    DllCanUnloadNow=HkDllCanUnloadNow PRIVATE
+    DllGetClassObject=HkDllGetClassObject PRIVATE
+    DllRegisterServer=HkDllRegisterServer PRIVATE
+    DllUnregisterServer=HkDllUnregisterServer PRIVATE
+    GetdfDIJoystick=HkGetdfDIJoystick
+    P2CoopHkVersion

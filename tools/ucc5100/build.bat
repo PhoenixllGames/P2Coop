@@ -1,7 +1,7 @@
 @echo off
-rem Builds the patched copies of Postal2.exe into a game System folder:
-rem   P2Ucc.exe      + P2UccHk.dll   commandlet runner (make, batchexport)
-rem   P2CoopHost.exe + P2CoopHk.dll  co-op game exe with engine fixes (host and clients)
+rem Builds into a game System folder:
+rem   P2Ucc.exe + P2UccHk.dll  commandlet runner (make, batchexport): a patched copy of Postal2.exe
+rem   dinput8.dll              P2CoopHk: the co-op engine fixes, loaded by the stock Postal2.exe
 rem Usage: build.bat <game System folder>   (the test copy, never the Steam install)
 setlocal
 set SYS=%~1
@@ -18,19 +18,21 @@ for /f "usebackq delims=" %%i in (`"%ProgramFiles(x86)%\Microsoft Visual Studio\
 if not defined VCVARS (echo Visual Studio not found: set VCVARS to vcvars32.bat & exit /b 1)
 call "%VCVARS%" >nul 2>nul || exit /b 1
 
-call :hook p2ucchk P2UccHk P2Ucc || exit /b 1
-call :hook p2coophk P2CoopHk P2CoopHost || exit /b 1
-rem The engine names the splash bitmap and localization file after the exe.
-copy /y "%SYS%\Postal2Splash.bmp" "%SYS%\P2CoopHostSplash.bmp" >nul || exit /b 1
-copy /y "%SYS%\Postal2.int" "%SYS%\P2CoopHost.int" >nul || exit /b 1
+call :dll p2ucchk P2UccHk || exit /b 1
+python -I "%HERE%patchexe.py" "%SYS%\Postal2.exe" "%OUT%\P2Ucc.exe" P2UccHk.dll || exit /b 1
+copy /y "%OUT%\P2UccHk.dll" "%SYS%\P2UccHk.dll" >nul || exit /b 1
+copy /y "%OUT%\P2Ucc.exe" "%SYS%\P2Ucc.exe" >nul || exit /b 1
+echo Installed P2UccHk.dll and P2Ucc.exe into %SYS%
+
+call :dll p2coophk dinput8 || exit /b 1
+copy /y "%OUT%\dinput8.dll" "%SYS%\dinput8.dll" >nul || exit /b 1
+echo Installed dinput8.dll (P2CoopHk) into %SYS%
+rem The co-op exe of earlier versions: the stock Postal2.exe runs the fixes now.
+for %%f in (P2CoopHost.exe P2CoopHk.dll P2CoopHostSplash.bmp P2CoopHost.int) do if exist "%SYS%\%%f" del /q "%SYS%\%%f"
 exit /b 0
 
-:hook
-rem %1 source basename, %2 DLL name, %3 exe name
+:dll
+rem %1 source basename, %2 DLL name
 cl /nologo /c /O1 /MT /W3 /Fo"%OUT%\%1.obj" "%HERE%%1.cpp" || exit /b 1
 link /nologo /DLL /MACHINE:X86 /DEF:"%HERE%%1.def" /OUT:"%OUT%\%2.dll" "%OUT%\%1.obj" user32.lib kernel32.lib || exit /b 1
-python -I "%HERE%patchexe.py" "%SYS%\Postal2.exe" "%OUT%\%3.exe" %2.dll || exit /b 1
-copy /y "%OUT%\%2.dll" "%SYS%\%2.dll" >nul || exit /b 1
-copy /y "%OUT%\%3.exe" "%SYS%\%3.exe" >nul || exit /b 1
-echo Installed %2.dll and %3.exe into %SYS%
 exit /b 0

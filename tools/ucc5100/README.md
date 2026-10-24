@@ -10,15 +10,18 @@ P2Ucc reuses the game's own exe instead:
 - `P2Ucc.exe` is a byte copy of `Postal2.exe`. The only change is the import name `COMDLG32.dll`, renamed to `P2UccHk.dll` (`patchexe.py`).
 - `P2UccHk.dll` (`p2ucchk.cpp`) redirects the exe's import of `Core.dll!appInit`. The exe initialises the engine with its own 5100 objects. The hook then loads the commandlet class, constructs it, calls `UCommandlet::Main` through the vtable and exits. This happens before any window or game engine exists.
 
-## P2CoopHost: the co-op host exe
+## P2CoopHk: the co-op engine fixes, as System\dinput8.dll
 
-The same trick gives the game engine fixes that UnrealScript cannot reach:
+The game gets engine fixes that UnrealScript cannot reach without any change to its files:
 
-- `P2CoopHost.exe` is a copy of `Postal2.exe` that imports `P2CoopHk.dll` (`p2coophk.cpp`) instead of `COMDLG32.dll`. The host and the clients run it.
+- `WinDrv.dll` imports `DINPUT8.dll`, which is not one of Windows' KnownDLLs, so a `dinput8.dll` in `System` (the exe's folder) is loaded first. P2CoopHk (`p2coophk.cpp`) is built as that DLL: the stock `Postal2.exe`, as Steam's Play button starts it, loads it for host, clients and single player alike. Its DirectInput8 exports (`DirectInput8Create`, `DllGetClassObject`, ...) go on to the system `dinput8.dll`, loaded by full path.
+- The engine loads `WinDrv.dll` when it creates its client, after Core and Engine are up, so the hooks go in from `DllMain`.
 - Fix 1: a save on a listen server no longer crashes the next client `JOIN`. During `UGameEngine::SaveGame`, `UObject::ResetLoaders` still loads the level's lazy data, but the level linker is not deleted.
 - Fix 2: quitting after a co-op session no longer shows a crash window: a failure inside `UObject::StaticExit` ends the object cleanup, and the game exits normally.
-- The Co-op menu starts and watches the Steam relay through console commands (`P2COOP LINK HOST|JOIN|STATUS|STOP`, a hook on `UGameEngine::Exec`).
-- Hooks go through the exported vtables and the `E9 rel32` jump thunks of the incrementally linked 5100 DLLs (`iathook.h`). If a hook can't be installed, the DLL shows a message box and the exe does not start.
+- The Co-op menu starts and watches the Steam relay through console commands (`P2COOP LINK LIST|HOST|JOIN|STATUS|STOP`, a hook on `UGameEngine::Exec`); the relay runs without a console window.
+- Tests: `P2COOP_WINDOW_POS` places the game window (`bgwindows.h`), `P2COOP MENUTEST` picks in the menu.
+- Hooks go through the exported vtables and the `E9 rel32` jump thunks of the incrementally linked 5100 DLLs (`iathook.h`). Everything is looked up first; if something does not fit (another game build), nothing is hooked, the log says so, and the game runs stock.
+- The installer recognises its own `dinput8.dll` by the export `P2CoopHkVersion` and does not overwrite another mod's.
 
 ## Build
 

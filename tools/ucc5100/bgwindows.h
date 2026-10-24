@@ -1,4 +1,5 @@
-// Window placement for test copies of the game (P2CoopHk.dll). Players never set these variables.
+// Window placement for test copies of the game (P2CoopHk, System\dinput8.dll). Players never set
+// these variables.
 //  P2COOP_WINDOW_POS=x,y  the game's top-level windows go to x,y (a slot on a secondary monitor,
 //                         chosen by tools/run_local.ps1); focus and activation stay stock.
 //  P2COOP_BACKGROUND=1    also never take the foreground or the focus, show windows without
@@ -6,8 +7,10 @@
 //                         tests any more: with activation refused, map changes went wrong.
 //
 // Implemented by patching the user32 imports of every module loaded from the game's System
-// folder: Postal2.exe and Window.dll at start, the rest (WinDrv.dll, D3DDrv.dll...) when the
-// engine loads them, through the LoadLibrary imports of Core.dll and Window.dll.
+// folder: Postal2.exe, Window.dll, Core.dll, Engine.dll and WinDrv.dll when WinDrv.dll loads this
+// DLL (again in DirectInput8Create, before WinDrv opens the game window), the rest (D3DDrv.dll...)
+// when the engine loads them, through the LoadLibrary imports of Core.dll and Window.dll. The
+// splash screen comes before, and was never placed (see BgCbt).
 #pragma once
 #include <windows.h>
 #include <limits.h>

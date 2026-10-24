@@ -7,6 +7,7 @@
 //   arm          both switch to a pistol (client: "GetWeapon" on its machine)
 //   host hits    the leader shoots the client: the client's health drops
 //   client hits  the client shoots the leader (Fire() on its machine): health drops
+//   corpse       an NPC killed on the server lies in the same place on the client
 //=============================================================================
 class CoopTestCombat extends CoopTestBase;
 
@@ -16,6 +17,7 @@ const DriveForward = 6000.0;
 var vector LeaderStart, ClientStart;
 var int HealthBefore, i;
 var Pawn Victim;
+var bool bPickVictim;	// the client's next corpse report picks the victim (ClientCamera)
 
 // The living NPC nearest to Spot, within Radius.
 function Pawn NPCAt(vector Spot, float Radius)
@@ -27,6 +29,55 @@ function Pawn NPCAt(vector Spot, float Radius)
 			&& (Best == None || VSize(P.Location - Spot) < VSize(Best.Location - Spot)))
 			Best = P;
 	return Best;
+}
+
+// Why no victim was found at Spot: the server's NPC nearest to it, living or not, and the nearest
+// living one.
+function string NearestNPC(vector Spot)
+{
+	local Pawn P, Any, Alive;
+	local string S;
+
+	foreach DynamicActors(class'Pawn', P)
+		if (P.PlayerReplicationInfo == None)
+		{
+			if (Any == None || VSize(P.Location - Spot) < VSize(Any.Location - Spot))
+				Any = P;
+			if (P.Health > 0 && (Alive == None || VSize(P.Location - Spot) < VSize(Alive.Location - Spot)))
+				Alive = P;
+		}
+	if (Any == None)
+		return "the server has no NPC";
+	S = "the server's nearest NPC"@Any@"is"@int(VSize(Any.Location - Spot))@"away at"@Any.Location@"health"@Any.Health;
+	if (Alive != None && Alive != Any)
+		S = S $ "; the nearest living one" @ Alive @ "is" @ int(VSize(Alive.Location - Spot)) @ "away at" @ Alive.Location;
+	return S;
+}
+
+// The client's report of the NPC nearest to him (ClientTestCorpse) picks the victim: the server's
+// living NPC at that spot, killed right then. A running bystander covers about 400 units a
+// second, so a second later the server's NPC was no longer where the client had it.
+function ClientCamera(CoopPlayer P, vector Loc, string StateName)
+{
+	local float Speed;
+	local bool bSeen;
+
+	Super.ClientCamera(P, Loc, StateName);
+	if (!bPickVictim || P != Remote)
+		return;
+	bPickVictim = false;
+	if (StateName != "no-corpse")
+		Victim = NPCAt(Loc, 200);
+	if (Victim == None)
+	{
+		log("P2CoopTest: no NPC of the client's found on the server near"@Loc@StateName$";"@NearestNPC(Loc));
+		return;
+	}
+	Speed = VSize(Victim.Velocity);
+	bSeen = FastTrace(Victim.Location, Remote.Pawn.Location + Remote.Pawn.EyePosition());
+	Victim.Died(Lead, class'BulletDamage', Victim.Location);
+	log("P2CoopTest: killed"@Victim@"at"@Victim.Location@"client had it at"@Loc
+		@"("$int(VSize(Victim.Location - Loc))@"apart, speed"@int(Speed)$", in the client pawn's sight:"@bSeen$")");
 }
 
 state Running
@@ -62,9 +113,11 @@ Begin:
 		&& VSize(SeenLeaderLoc - Lead.Pawn.Location) < 64,
 		"client sees"@SeenLeaderLoc@"server"@Lead.Pawn.Location);
 
-	// client moves (its forward input, replicated through ServerMove)
+	// client moves (its forward input, replicated through ServerMove), less far than the leader did:
+	// he started 70 units behind him. Driven as long, he ran into the leader's pawn, and in the runs
+	// where he got 652 units instead of 605 neither hit the other below.
 	ClientStart = Remote.Pawn.Location;
-	Remote.ClientTestDrive(DriveForward, 1.5);
+	Remote.ClientTestDrive(DriveForward, 1.0);
 	Sleep(3.0);
 	Check("client-moves", VSize(Remote.Pawn.Location - ClientStart) > 100,
 		"moved"@VSize(Remote.Pawn.Location - ClientStart));
@@ -81,6 +134,8 @@ Begin:
 	Sleep(3.0);
 	Check("arm-leader", PistolWeapon(Lead.Pawn.Weapon) != None, "weapon"@Lead.Pawn.Weapon);
 	Check("arm-client", PistolWeapon(Remote.Pawn.Weapon) != None, "weapon"@Remote.Pawn.Weapon);
+	log("P2CoopTest: leader at"@Lead.Pawn.Location@"client at"@Remote.Pawn.Location
+		@"apart"@int(VSize(Lead.Pawn.Location - Remote.Pawn.Location)));
 
 	// leader shoots the client
 	HealthBefore = Remote.Pawn.Health;
@@ -111,17 +166,15 @@ Begin:
 
 	// A dead NPC lies in the same place for everyone (no ragdolls in co-op). The victim is one the
 	// client has (an NPC is replicated only while relevant to him): the NPC nearest to the client
-	// on his machine, found on the server by its position.
+	// on his machine, found on the server by its position as his report comes in (ClientCamera).
+	Victim = None;
 	bGotCamera = false;
+	bPickVictim = true;
 	Remote.ClientTestCorpse(Remote.Pawn.Location);
 	Sleep(1.0);
-	Victim = None;
-	if (bGotCamera && ClientState != "no-corpse")
-		Victim = NPCAt(ClientCam, 200);
+	bPickVictim = false;
 	if (Victim != None)
 	{
-		Victim.Died(Lead, class'BulletDamage', Victim.Location);
-		log("P2CoopTest: killed"@Victim@"at"@Victim.Location@"client had it at"@ClientCam@"state"@Victim.GetStateName());
 		Sleep(4.0);
 		bGotCamera = false;
 		Remote.ClientTestCorpse(Victim.Location);
@@ -130,7 +183,8 @@ Begin:
 			"server"@Victim.Location@"client"@ClientCam@ClientState@"server physics"@Victim.Physics);
 	}
 	else
-		Check("npc-corpse-same-place", false, "no NPC of the client's found on the server near"@ClientCam@ClientState);
+		Check("npc-corpse-same-place", false, "no NPC of the client's found on the server near"@ClientCam@ClientState
+			@"(report received:"@bGotCamera$")");
 	Finish();
 }
 

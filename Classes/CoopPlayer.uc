@@ -477,7 +477,8 @@ function ClientTestCorpse(vector Near)
 	if (Best == None)
 		ServerTestCamera(vect(0,0,0), "no-corpse");
 	else
-		ServerTestCamera(Best.Location, "corpse" @ Best @ "physics" @ Best.Physics @ "anim" @ Best.bPhysicsAnimUpdate);
+		ServerTestCamera(Best.Location, "corpse" @ Best @ "role" @ Best.Role @ "physics" @ Best.Physics @ "anim" @ Best.bPhysicsAnimUpdate
+			@ "speed" @ int(VSize(Best.Velocity)));
 }
 
 // Reports where this machine's camera is.
