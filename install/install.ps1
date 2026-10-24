@@ -59,7 +59,8 @@ Copy-Item (Join-Path $sys 'Postal2.int') (Join-Path $sys 'P2CoopHost.int') -Forc
 Copy-Item (Join-Path $here 'P2Coop.u'), (Join-Path $here 'P2CoopRu.int') $sys -Force
 Copy-Item (Join-Path $here 'P2CoopHk.dll') $sys -Force
 
-# P2CoopGame.ini: the player's Postal2.ini plus what co-op needs.
+# P2CoopGame.ini: the player's Postal2.ini plus what co-op needs. A game that was never started
+# has no Postal2.ini yet; the engine would make it from Default.ini, so start from that.
 $extraPackages = 'GameTypes', 'BasePeople', 'People', 'AIPack', 'AWPawns', 'AWInventory', 'AWPStuff', 'EDStuff',
                  'FX2', 'Postal2Holidays', 'P2Coop'
 $force = @{
@@ -67,7 +68,10 @@ $force = @{
     'IpDrv.TcpNetDriver'    = @{ MaxConnPerIPPerMinute = '64'; MaxClientRate = '1000000'; MaxInternetClientRate = '1000000' }
     'Engine.Player'         = @{ ConfiguredInternetSpeed = '1000000'; ConfiguredLanSpeed = '1000000' }
 }
-$src = Get-Content (Join-Path $sys 'Postal2.ini') -Encoding Default
+$iniFile = Join-Path $sys 'Postal2.ini'
+if (-not (Test-Path $iniFile)) { $iniFile = Join-Path $sys 'Default.ini' }
+if (-not (Test-Path $iniFile)) { Fail "no System\Postal2.ini or System\Default.ini in $Game" }
+$src = Get-Content $iniFile -Encoding Default
 $out = New-Object System.Collections.Generic.List[string]
 $section = ''; $seen = @{}; $shellRoot = @()
 function Flush([string]$Sec) {
