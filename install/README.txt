@@ -36,16 +36,20 @@ How it plays:
   - Any player's telepad moves the whole group to the next map.
   - Cutscenes: the others watch through the host's camera.
   - Arrested: the whole group goes to jail, everyone's things go to the evidence room.
-  - A dead player comes back next to a living teammate after 10 s. If everybody is dead, the host
-    loads the last save.
+  - A player who would die goes down instead while a teammate is still up: he lies on the ground,
+    cannot move, shoot or use items, and nobody can hurt him. A teammate revives him by peeing on
+    him for about 3 seconds (open the zipper and aim at him). Without help he dies after 30 s.
+  - A dead player comes back next to a living teammate after 10 s. If everybody is down or dead,
+    the host loads the last save.
+  - Your teammates' names and health bars show above their heads.
   - Only the host saves. After loading, the host returns to the saved map with the day and errands;
     the others reconnect by themselves and keep what they carried. Positions start at the map start.
   - Co-op uses the single-player save slots: a co-op save, autosave or quicksave replaces the
     single-player one in that slot.
   - A player whose game drops out and who rejoins on the same map gets his things back.
 
-Known limits: Paradise Lost is not supported. Not yet tried with two real Steam accounts (only
-with a local Steam stand-in). If another mod already uses System\dinput8.dll, the installer stops
-and says so.
+Known limits: Paradise Lost is not supported. The relay changes of 1.1 were tested with a local
+Steam stand-in only (1.0.x was played over real Steam). If another mod already uses
+System\dinput8.dll, the installer stops and says so.
 
 P2Coop co-op mod by PhoenixllGames.

@@ -61,11 +61,9 @@ displaying the rendered scene; visual appearance still needs a normal renderer.
 | load | host loads a save, clients reconnect and keep their saved items |
 | leaderdead | a client takes a level exit while the leader is dead: the leader respawns and the group travels |
 
-Last runs (2026-10-24), each on its own feature branch: the first eight tests 8/8 direct and 8/8
-through the relay (mock Steam), menu_e2e PASS; leaderdead, ragdoll, nameplates (11 checks) and
-revive (25 checks) passed there too, nameplates and revive with Engine.NullRenderDevice. The
-whole suite has not run since they were merged. The new features' graphical appearance and relay
-behavior have not been verified; not tried with two real Steam accounts.
+Last run (2026-10-24, 1.1.0): all 12 tests pass direct and through the relay (mock Steam), with
+four or five game copies running at once; menu_e2e PASS; install.ps1 -SelfTest PASS. The relay
+of 1.1 has not been tried with two real Steam accounts yet (1.0.x was played over real Steam).
 
 ## Status
 
